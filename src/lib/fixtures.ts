@@ -3,6 +3,7 @@
 // data when the corresponding backend phase lands.
 
 import type { Grade, InvestmentTier, MetricId, ReportData } from "@/types/report";
+import type { ModelTier } from "@/types/config";
 import { getGrade } from "@/lib/scoring/grade";
 import { getInvestmentTier } from "@/lib/scoring/tier";
 import { WEIGHT_PRESETS } from "@/lib/scoring/presets";
@@ -154,3 +155,107 @@ export const sampleReport: SampleReport = {
       "Rare combination of operator credibility and capital discipline. The competitive picture gives me pause, but the retention numbers are the kind that compound quietly. I would want to see one repeatable, non-founder sales cycle before leading — but this is a company I would not want to miss.",
   },
 };
+
+// --- Settings page fixtures (until Phase 7 wires real providers) ---
+
+export type ProviderId = "anthropic" | "groq" | "openai" | "tavily";
+
+export interface Provider {
+  id: ProviderId;
+  name: string;
+  description: string;
+  placeholder: string;
+}
+
+export const PROVIDERS: Provider[] = [
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    description: "Sonnet scoring + Haiku extraction/verification",
+    placeholder: "sk-ant-api03-••••••••••••••••••••",
+  },
+  {
+    id: "groq",
+    name: "Groq",
+    description: "Llama 3.3 70B economy fallback",
+    placeholder: "gsk_••••••••••••••••••••••••",
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    description: "Embeddings for the drift gate",
+    placeholder: "sk-proj-••••••••••••••••••••",
+  },
+  {
+    id: "tavily",
+    name: "Tavily",
+    description: "Live regional market context",
+    placeholder: "tvly-••••••••••••••••••••••",
+  },
+];
+
+export const SAVED_KEYS: Record<ProviderId, string> = {
+  anthropic: "sk-ant-api03-a1b2c3d4e5f6g7h8i9j0",
+  groq: "",
+  openai: "sk-proj-9z8y7x6w5v4u3t2s1r0q",
+  tavily: "tvly-k1l2m3n4o5p6q7r8s9t0",
+};
+
+export type HealthStatus = "healthy" | "degraded" | "down";
+
+export interface ServiceHealth {
+  name: string;
+  status: HealthStatus;
+  latencyMs: number | null;
+  region: string;
+}
+
+export const SERVICE_HEALTH: ServiceHealth[] = [
+  { name: "Anthropic API", status: "healthy", latencyMs: 412, region: "us-east" },
+  { name: "Groq API", status: "healthy", latencyMs: 128, region: "us-central" },
+  { name: "OpenAI Embeddings", status: "degraded", latencyMs: 1840, region: "us-east" },
+  { name: "Tavily Search", status: "healthy", latencyMs: 356, region: "global" },
+  { name: "Supabase Postgres", status: "healthy", latencyMs: 18, region: "us-east" },
+  { name: "Upstash Redis", status: "healthy", latencyMs: 9, region: "global" },
+  { name: "Cloudflare R2", status: "healthy", latencyMs: 84, region: "global" },
+  { name: "Inngest", status: "down", latencyMs: null, region: "us-west" },
+];
+
+// Approx blended cost per validation run (USD) by tier.
+export const TIER_COST_PER_VALIDATION: Record<ModelTier, number> = {
+  economy: 0.02,
+  balanced: 0.12,
+  premium: 0.31,
+};
+
+export const TIER_NOTES: Record<ModelTier, string> = {
+  economy: "Llama 3.3 70B via Groq",
+  balanced: "Sonnet scoring, Haiku extraction",
+  premium: "Sonnet everywhere, deeper passes",
+};
+
+export type CallStatus = "success" | "error" | "timeout";
+
+export interface CallLogEntry {
+  timestamp: string;
+  model: string;
+  step: string;
+  tokens: number;
+  cost: number;
+  status: CallStatus;
+}
+
+export const CALL_LOG: CallLogEntry[] = [
+  { timestamp: "2026-07-04 14:32:07", model: "claude-sonnet-4-5", step: "Scoring", tokens: 18420, cost: 0.0895, status: "success" },
+  { timestamp: "2026-07-04 14:31:58", model: "claude-haiku-4-5", step: "Extracting", tokens: 9210, cost: 0.0092, status: "success" },
+  { timestamp: "2026-07-04 14:31:44", model: "tavily-search", step: "Enriching", tokens: 0, cost: 0.005, status: "success" },
+  { timestamp: "2026-07-04 14:30:12", model: "claude-sonnet-4-5", step: "Scoring", tokens: 15680, cost: 0.0761, status: "timeout" },
+  { timestamp: "2026-07-04 14:29:50", model: "claude-haiku-4-5", step: "Verifying", tokens: 7340, cost: 0.0073, status: "success" },
+  { timestamp: "2026-07-04 14:28:33", model: "llama-3.3-70b", step: "Extracting", tokens: 11205, cost: 0.0009, status: "success" },
+  { timestamp: "2026-07-04 14:27:19", model: "text-embedding-3-small", step: "Drift gate", tokens: 4096, cost: 0.0001, status: "success" },
+  { timestamp: "2026-07-04 14:26:41", model: "claude-sonnet-4-5", step: "Scoring", tokens: 16920, cost: 0.0822, status: "error" },
+  { timestamp: "2026-07-04 14:25:08", model: "claude-sonnet-4-5", step: "Scoring", tokens: 19870, cost: 0.0966, status: "success" },
+  { timestamp: "2026-07-04 14:24:52", model: "tavily-search", step: "Enriching", tokens: 0, cost: 0.005, status: "success" },
+  { timestamp: "2026-07-04 14:23:30", model: "claude-haiku-4-5", step: "Extracting", tokens: 8640, cost: 0.0086, status: "success" },
+  { timestamp: "2026-07-04 14:22:14", model: "claude-haiku-4-5", step: "Verifying", tokens: 6980, cost: 0.007, status: "success" },
+];
