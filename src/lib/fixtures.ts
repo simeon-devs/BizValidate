@@ -260,3 +260,15 @@ export const CALL_LOG: CallLogEntry[] = [
   { timestamp: "2026-07-04 14:23:30", model: "claude-haiku-4-5", step: "Extracting", tokens: 8640, cost: 0.0086, status: "success" },
   { timestamp: "2026-07-04 14:22:14", model: "claude-haiku-4-5", step: "Verifying", tokens: 6980, cost: 0.007, status: "success" },
 ];
+
+// BLUEPRINT §16 test fixture — used by pipeline tests, including the
+// ±5-point consistency test once the scorer exists.
+export const TEST_SUBMISSION = `
+  We are building a B2B SaaS platform for restaurant inventory management in West Africa.
+  Team: 2 co-founders. CEO has 5 years in food distribution. CTO has 3 years engineering at fintech.
+  Market: 50,000 restaurants in Lagos alone, currently using paper/WhatsApp. $200M TAM.
+  Product: mobile app + WhatsApp bot. 12 pilot restaurants, 3 paying at $50/month.
+  Revenue: SaaS $50-200/month per restaurant.
+  Competitors: no direct competitor in West Africa. Excel and WhatsApp are the competition.
+  Funding: seeking $150k pre-seed to hire 2 engineers and expand to Accra.
+`;
