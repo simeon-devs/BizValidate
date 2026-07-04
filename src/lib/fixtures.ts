@@ -12,12 +12,13 @@ import { WEIGHT_PRESETS } from "@/lib/scoring/presets";
 // status enum arrives with the state machine in Phase 3.
 export type ValidationStatus = "Draft" | "In Review" | "Validated" | "Rejected";
 
+// score/grade are null for real submissions awaiting the AI pipeline.
 export interface ValidationRow {
   id: string;
   business: string;
   type: string;
-  score: number;
-  grade: Grade;
+  score: number | null;
+  grade: Grade | null;
   date: string; // ISO
   status: ValidationStatus;
 }

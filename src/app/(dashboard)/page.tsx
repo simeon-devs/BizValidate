@@ -3,7 +3,9 @@ import { StatCards } from "@/components/dashboard/StatCards";
 import { HistorySection } from "@/components/dashboard/HistorySection";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { NewValidationButton } from "@/components/dashboard/NewValidationButton";
-import { sampleValidations } from "@/lib/fixtures";
+import { sampleValidations, type ValidationRow } from "@/lib/fixtures";
+import { getSubmissionsByUser } from "@/lib/db/queries/submissions";
+import { INPUT_TYPE_LABELS, STAGE_LABELS } from "@/lib/utils/format";
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -12,9 +14,32 @@ function greeting(): string {
   return "Good evening";
 }
 
+// Submissions have no business-name field; use the opening of the text.
+function excerptTitle(rawText: string): string {
+  const clean = rawText.replace(/\s+/g, " ").trim();
+  return clean.length > 48 ? `${clean.slice(0, 48)}…` : clean;
+}
+
 export default async function DashboardPage() {
   const user = await currentUser();
-  const data = sampleValidations;
+
+  // Real submissions (unscored until the AI pipeline lands) ahead of the
+  // sample rows, which stay until reports are generated for real data.
+  let submissionRows: ValidationRow[] = [];
+  if (user) {
+    const submissions = await getSubmissionsByUser(user.id);
+    submissionRows = submissions.map((s) => ({
+      id: s.id,
+      business: excerptTitle(s.rawText),
+      type: `${INPUT_TYPE_LABELS[s.inputType] ?? s.inputType} · ${STAGE_LABELS[s.stage] ?? s.stage}`,
+      score: null,
+      grade: null,
+      date: (s.createdAt ?? new Date()).toISOString(),
+      status: "In Review" as const,
+    }));
+  }
+
+  const data = [...submissionRows, ...sampleValidations];
   const hasData = data.length > 0;
 
   return (

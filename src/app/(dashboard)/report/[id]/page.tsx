@@ -12,7 +12,8 @@ import { formatDateLong } from "@/lib/utils/format";
 // overlays the requested row's identity onto the sample report body.
 function getReport(id: string): SampleReport | null {
   const row = sampleValidations.find((v) => v.id === id);
-  if (!row) return null;
+  // Unscored rows have no report until the AI pipeline generates one.
+  if (!row || row.score === null || row.grade === null) return null;
   return {
     ...sampleReport,
     id: row.id,

@@ -32,11 +32,14 @@ function StatCard({
 
 export function StatCards({ data }: { data: ValidationRow[] }) {
   const total = data.length;
+  const scored = data.filter(
+    (v): v is ValidationRow & { score: number } => v.score !== null,
+  );
   const avg =
-    total > 0
-      ? Math.round(data.reduce((sum, v) => sum + v.score, 0) / total)
-      : 0;
-  const latest = data[0];
+    scored.length > 0
+      ? Math.round(scored.reduce((sum, v) => sum + v.score, 0) / scored.length)
+      : null;
+  const latestGraded = data.find((v) => v.grade !== null);
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -47,14 +50,16 @@ export function StatCards({ data }: { data: ValidationRow[] }) {
       />
       <StatCard
         label="Average Score"
-        value={String(avg)}
-        meta="Across all runs"
+        value={avg === null ? "—" : String(avg)}
+        meta={avg === null ? "No scored runs yet" : "Across scored runs"}
       />
       <StatCard
         label="Latest Grade"
-        value={latest ? latest.grade : "—"}
-        valueColor={latest ? gradeColor(latest.grade) : undefined}
-        meta={latest ? latest.business : "No runs yet"}
+        value={latestGraded?.grade ?? "—"}
+        valueColor={
+          latestGraded?.grade ? gradeColor(latestGraded.grade) : undefined
+        }
+        meta={latestGraded ? latestGraded.business : "No graded runs yet"}
       />
     </div>
   );

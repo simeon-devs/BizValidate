@@ -11,6 +11,23 @@ export const METRIC_LABELS: Record<MetricId, string> = {
   scalability: "Scalability",
 };
 
+export const INPUT_TYPE_LABELS: Record<string, string> = {
+  plan: "Business Plan",
+  pitch: "Pitch Deck",
+  financials: "Financials",
+  idea: "Raw Idea",
+};
+
+export const STAGE_LABELS: Record<string, string> = {
+  idea: "Idea",
+  mvp: "MVP",
+  "pre-revenue": "Pre-Revenue",
+  "early-revenue": "Early Revenue",
+  growth: "Growth",
+  scale: "Scale",
+  established: "Established",
+};
+
 export const METRIC_ORDER: MetricId[] = [
   "team",
   "market",

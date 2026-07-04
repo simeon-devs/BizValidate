@@ -35,8 +35,9 @@ function ChartTooltip({
 }
 
 export function ScoreChart({ data }: { data: ValidationRow[] }) {
-  // Oldest → newest for a left-to-right trajectory.
-  const points: Point[] = [...data]
+  // Scored rows only, oldest → newest for a left-to-right trajectory.
+  const points: Point[] = data
+    .filter((v): v is typeof v & { score: number } => v.score !== null)
     .sort((a, b) => +new Date(a.date) - +new Date(b.date))
     .map((v) => ({
       label: formatDate(v.date),

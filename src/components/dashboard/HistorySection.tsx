@@ -18,11 +18,11 @@ const STATUS_STYLES: Record<ValidationStatus, string> = {
 };
 
 function HistoryRow({ v }: { v: ValidationRow }) {
-  return (
-    <Link
-      href={`/report/${v.id}`}
-      className="grid grid-cols-12 items-center gap-4 border-b border-border px-5 py-4 transition-colors last:border-b-0 hover:bg-input/40"
-    >
+  const rowClass =
+    "grid grid-cols-12 items-center gap-4 border-b border-border px-5 py-4 transition-colors last:border-b-0";
+
+  const content = (
+    <>
       {/* Business */}
       <div className="col-span-12 sm:col-span-5">
         <p className="text-sm font-semibold text-foreground">{v.business}</p>
@@ -36,7 +36,7 @@ function HistoryRow({ v }: { v: ValidationRow }) {
         <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-subtle-foreground sm:hidden">
           Score
         </p>
-        <p className="font-mono text-lg text-foreground">{v.score}</p>
+        <p className="font-mono text-lg text-foreground">{v.score ?? "—"}</p>
       </div>
 
       {/* Grade */}
@@ -44,12 +44,18 @@ function HistoryRow({ v }: { v: ValidationRow }) {
         <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-subtle-foreground sm:hidden">
           Grade
         </p>
-        <p
-          className="font-serif text-2xl leading-none"
-          style={{ color: gradeColor(v.grade) }}
-        >
-          {v.grade}
-        </p>
+        {v.grade ? (
+          <p
+            className="font-serif text-2xl leading-none"
+            style={{ color: gradeColor(v.grade) }}
+          >
+            {v.grade}
+          </p>
+        ) : (
+          <p className="font-serif text-2xl leading-none text-subtle-foreground">
+            —
+          </p>
+        )}
       </div>
 
       {/* Date */}
@@ -70,6 +76,17 @@ function HistoryRow({ v }: { v: ValidationRow }) {
           {v.status}
         </span>
       </div>
+    </>
+  );
+
+  // Unscored submissions have no report to open yet.
+  if (v.score === null) {
+    return <div className={rowClass}>{content}</div>;
+  }
+
+  return (
+    <Link href={`/report/${v.id}`} className={cn(rowClass, "hover:bg-input/40")}>
+      {content}
     </Link>
   );
 }

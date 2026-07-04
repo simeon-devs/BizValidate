@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Upload, FileText, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { InputType, BusinessStage } from "@/types/submission";
-import { sampleReport } from "@/lib/fixtures";
+import { submitValidation } from "@/app/(dashboard)/validate/actions";
 
 const INPUT_TYPES: Array<{ id: InputType; label: string }> = [
   { id: "plan", label: "Business Plan" },
@@ -54,6 +54,7 @@ export function ValidationForm() {
   const [dragOver, setDragOver] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = useCallback((candidate: File): string | null => {
@@ -83,21 +84,43 @@ export function ValidationForm() {
     [validateFile],
   );
 
-  const hasSource =
-    sourceMode === "paste" ? pastedText.trim().length > 0 : file !== null;
+  // Upload submissions unlock when /api/upload lands (BLUEPRINT Phase 2).
+  const hasSource = sourceMode === "paste" && pastedText.trim().length > 0;
   const canSubmit = hasSource && !analyzing;
 
-  // Placeholder run until POST /api/validate and the Inngest pipeline exist
-  // (BLUEPRINT Phases 2-3): plays the step sequence, then opens the sample report.
+  // Persists the submission; the AI pipeline (BLUEPRINT Phase 3) will pick it
+  // up from here. File uploads still need /api/upload — paste-only for now.
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
+    setSubmitError(null);
     setAnalyzing(true);
-    for (let i = 0; i < ANALYZE_STEPS.length; i++) {
-      setStepIndex(i);
-      await new Promise((r) => setTimeout(r, 1100));
+
+    const stepTimer = setInterval(
+      () => setStepIndex((i) => Math.min(i + 1, ANALYZE_STEPS.length - 1)),
+      1100,
+    );
+
+    try {
+      const result = await submitValidation({
+        inputType,
+        stage,
+        text: pastedText,
+        targetRegion: region.trim() || undefined,
+      });
+
+      if (result.ok) {
+        router.push("/");
+        return;
+      }
+      setSubmitError(result.error);
+    } catch {
+      setSubmitError("Something went wrong. Please try again.");
+    } finally {
+      clearInterval(stepTimer);
+      setAnalyzing(false);
+      setStepIndex(0);
     }
-    router.push(`/report/${sampleReport.id}`);
   }
 
   return (
@@ -278,6 +301,10 @@ export function ValidationForm() {
                 {fileError}
               </p>
             )}
+            <p className="font-mono text-xs text-subtle-foreground">
+              File analysis is coming soon — paste your text to run a
+              validation today.
+            </p>
           </div>
         )}
       </section>
@@ -297,6 +324,11 @@ export function ValidationForm() {
       {/* 5. Analyze — pinned */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-surface/95 backdrop-blur md:left-60">
         <div className="mx-auto max-w-2xl px-4 py-4 md:px-8">
+          {submitError && (
+            <p className="mb-2 text-center text-xs text-danger" role="alert">
+              {submitError}
+            </p>
+          )}
           <button
             type="submit"
             disabled={!canSubmit}
