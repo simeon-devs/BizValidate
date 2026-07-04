@@ -84,28 +84,57 @@ export function ValidationForm() {
     [validateFile],
   );
 
-  // Upload submissions unlock when /api/upload lands (BLUEPRINT Phase 2).
-  const hasSource = sourceMode === "paste" && pastedText.trim().length > 0;
+  const hasSource =
+    sourceMode === "paste" ? pastedText.trim().length > 0 : file !== null;
   const canSubmit = hasSource && !analyzing;
 
   // Persists the submission; the AI pipeline (BLUEPRINT Phase 3) will pick it
-  // up from here. File uploads still need /api/upload — paste-only for now.
+  // up from here.
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
     setSubmitError(null);
-    setAnalyzing(true);
 
+    // PDF/DOCX text extraction lands with the Mistral OCR parser.
+    if (sourceMode === "upload" && file && !/\.txt$/i.test(file.name)) {
+      setSubmitError(
+        "PDF & DOCX analysis is coming with the document parser — use a .txt file or paste your text for now.",
+      );
+      return;
+    }
+
+    setAnalyzing(true);
     const stepTimer = setInterval(
       () => setStepIndex((i) => Math.min(i + 1, ANALYZE_STEPS.length - 1)),
       1100,
     );
 
     try {
+      let text = pastedText;
+      let fileUrl: string | undefined;
+
+      if (sourceMode === "upload" && file) {
+        const body = new FormData();
+        body.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body });
+        const upload = (await res.json()) as {
+          fileUrl?: string;
+          extractedText?: string;
+          error?: string;
+        };
+        if (!res.ok || !upload.fileUrl || !upload.extractedText) {
+          setSubmitError(upload.error ?? "Upload failed. Try again.");
+          return;
+        }
+        text = upload.extractedText;
+        fileUrl = upload.fileUrl;
+      }
+
       const result = await submitValidation({
         inputType,
         stage,
-        text: pastedText,
+        text,
+        fileUrl,
         targetRegion: region.trim() || undefined,
       });
 
@@ -302,8 +331,8 @@ export function ValidationForm() {
               </p>
             )}
             <p className="font-mono text-xs text-subtle-foreground">
-              File analysis is coming soon — paste your text to run a
-              validation today.
+              .txt files run end-to-end today; PDF &amp; DOCX analysis arrives
+              with the document parser.
             </p>
           </div>
         )}
