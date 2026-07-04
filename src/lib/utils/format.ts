@@ -1,4 +1,26 @@
-import type { Grade } from "@/types/report";
+import type { Grade, MetricId } from "@/types/report";
+
+export const METRIC_LABELS: Record<MetricId, string> = {
+  team: "Team",
+  market: "Market",
+  product: "Product",
+  competitive: "Competitive",
+  gotomarket: "Go-to-Market",
+  financials: "Financials",
+  traction: "Traction",
+  scalability: "Scalability",
+};
+
+export const METRIC_ORDER: MetricId[] = [
+  "team",
+  "market",
+  "product",
+  "competitive",
+  "gotomarket",
+  "financials",
+  "traction",
+  "scalability",
+];
 
 // Grade tier color: A range = success, B range = dedicated B tint,
 // C range = warning, D/F = danger. The lime accent stays reserved for
