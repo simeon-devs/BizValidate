@@ -5,17 +5,19 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  color-scheme: dark;
+
   /* BizValidate brand tokens — source of truth (BLUEPRINT.md Section 13) */
-  --bg-base: #0a0a0a;
-  --bg-elevated: #111111;
-  --bg-card: #171717;
-  --bg-input: #1e1e1e;
-  --border-subtle: #252525;
-  --border-default: #333333;
-  --border-strong: #3a3a3a;
-  --text-primary: #f0f0f0;
-  --text-secondary: #a0a0a0;
-  --text-muted: #555555;
+  --background: #0a0a0a;
+  --surface: #111111;
+  --card: #171717;
+  --input: #1e1e1e;
+  --border: #252525;
+  --border-strong: #333333;
+  --border-stronger: #3a3a3a;
+  --foreground: #f0f0f0;
+  --muted-foreground: #a0a0a0;
+  --subtle-foreground: #555555;
   --accent: #e8ff47;
   --accent-hover: #b8cc2a;
   --success: #4cff91;
@@ -24,25 +26,21 @@
   --info: #5fb8ff;
   --purple: #b47fff;
   --accent-foreground: #0a0a0a;
+  /* B-grade tint — sits between success (A) and warning (C) on grade scales */
+  --grade-b: #eab308;
 
   /* shadcn/ui semantic tokens — mapped onto the brand tokens above.
      BizValidate is a single dark theme, so this is the only palette
      (no separate .dark override block). */
-  --background: var(--bg-base);
-  --foreground: var(--text-primary);
-  --card: var(--bg-card);
-  --card-foreground: var(--text-primary);
-  --popover: var(--bg-elevated);
-  --popover-foreground: var(--text-primary);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--foreground);
   --primary: var(--accent);
   --primary-foreground: var(--accent-foreground);
-  --secondary: var(--bg-input);
-  --secondary-foreground: var(--text-primary);
-  --muted: var(--bg-elevated);
-  --muted-foreground: var(--text-secondary);
+  --secondary: var(--input);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--surface);
   --destructive: var(--danger);
-  --border: var(--border-default);
-  --input: var(--bg-input);
   --ring: var(--accent);
   --chart-1: var(--accent);
   --chart-2: var(--success);
@@ -50,27 +48,22 @@
   --chart-4: var(--warning);
   --chart-5: var(--purple);
   --radius: 0.625rem;
-  --sidebar: var(--bg-elevated);
-  --sidebar-foreground: var(--text-primary);
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--accent);
   --sidebar-primary-foreground: var(--accent-foreground);
-  --sidebar-accent: var(--bg-card);
-  --sidebar-accent-foreground: var(--text-primary);
-  --sidebar-border: var(--border-subtle);
+  --sidebar-accent: var(--card);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
   --sidebar-ring: var(--accent);
 }
 
 @theme inline {
-  --color-bg-base: var(--bg-base);
-  --color-bg-elevated: var(--bg-elevated);
-  --color-bg-card: var(--bg-card);
-  --color-bg-input: var(--bg-input);
-  --color-border-subtle: var(--border-subtle);
-  --color-border-default: var(--border-default);
+  --color-surface: var(--surface);
   --color-border-strong: var(--border-strong);
-  --color-text-primary: var(--text-primary);
-  --color-text-secondary: var(--text-secondary);
-  --color-text-muted: var(--text-muted);
+  --color-border-stronger: var(--border-stronger);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-grade-b: var(--grade-b);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-foreground: var(--accent-foreground);
@@ -81,6 +74,7 @@
   --color-purple: var(--purple);
 
   --font-display: var(--font-dm-serif-display);
+  --font-serif: var(--font-dm-serif-display);
   --font-body: var(--font-syne);
   --font-mono: var(--font-dm-mono);
   --font-sans: var(--font-syne);
@@ -133,4 +127,30 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Accent range slider thumb (admin weight sliders) */
+.rubric-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 9999px;
+  background: var(--accent);
+  border: 2px solid var(--background);
+  cursor: pointer;
+}
+
+.rubric-slider::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 9999px;
+  background: var(--accent);
+  border: 2px solid var(--background);
+  cursor: pointer;
+}
+
+.rubric-slider:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
 }

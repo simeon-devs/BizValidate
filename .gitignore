@@ -47,3 +47,6 @@ BLUEPRINT.md
 SESSION_STARTER.md
 docs/
 .claude/
+
+# v0 design export — reference only, ported into src/ then deleted
+business-validation-dashboard/

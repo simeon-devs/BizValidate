@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // v0 design export — reference only, not part of the app
+    "business-validation-dashboard/**",
   ]),
 ]);
 
