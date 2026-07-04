@@ -2,6 +2,8 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { uploadObject } from "@/lib/storage/r2";
+import { extractDocumentText } from "@/lib/pdf/parser";
+import { isAppError } from "@/lib/utils/errors";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -54,14 +56,19 @@ export async function POST(request: Request) {
       file.type || "application/octet-stream",
     );
 
-    // Plain-text files need no OCR; PDF/DOCX extraction arrives with the
-    // Mistral OCR parser (BLUEPRINT Phase 2, step 3).
+    // Plain text decodes directly; PDF/DOCX go through Mistral OCR.
     const extractedText = /\.txt$/i.test(file.name)
       ? buffer.toString("utf-8")
-      : undefined;
+      : await extractDocumentText(buffer, file.name);
 
     return NextResponse.json({ fileUrl, extractedText });
-  } catch {
+  } catch (error) {
+    if (isAppError(error)) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: 422 },
+      );
+    }
     return NextResponse.json(
       { error: "Upload failed. Try again.", code: "upload_failed" },
       { status: 500 },

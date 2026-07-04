@@ -94,15 +94,6 @@ export function ValidationForm() {
     e.preventDefault();
     if (!canSubmit) return;
     setSubmitError(null);
-
-    // PDF/DOCX text extraction lands with the Mistral OCR parser.
-    if (sourceMode === "upload" && file && !/\.txt$/i.test(file.name)) {
-      setSubmitError(
-        "PDF & DOCX analysis is coming with the document parser — use a .txt file or paste your text for now.",
-      );
-      return;
-    }
-
     setAnalyzing(true);
     const stepTimer = setInterval(
       () => setStepIndex((i) => Math.min(i + 1, ANALYZE_STEPS.length - 1)),
@@ -330,10 +321,6 @@ export function ValidationForm() {
                 {fileError}
               </p>
             )}
-            <p className="font-mono text-xs text-subtle-foreground">
-              .txt files run end-to-end today; PDF &amp; DOCX analysis arrives
-              with the document parser.
-            </p>
           </div>
         )}
       </section>

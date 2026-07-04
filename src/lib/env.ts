@@ -13,6 +13,9 @@ const envSchema = z.object({
   // Tavily (regional search)
   TAVILY_API_KEY: z.string().min(1),
 
+  // Mistral (document OCR)
+  MISTRAL_API_KEY: z.string().min(1),
+
   // Supabase
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
