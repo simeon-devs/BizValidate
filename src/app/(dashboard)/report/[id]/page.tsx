@@ -1,28 +1,56 @@
 import { notFound } from "next/navigation";
+import { currentUser } from "@clerk/nextjs/server";
 import { ReportHero } from "@/components/report/ReportHero";
 import { MetricsGrid } from "@/components/report/MetricsGrid";
 import { ReportSections } from "@/components/report/ReportSections";
 import { InvestorNotes } from "@/components/report/InvestorNotes";
 import { ReportActions } from "@/components/report/ReportActions";
 import { sampleReport, sampleValidations, type SampleReport } from "@/lib/fixtures";
+import { getSubmissionById } from "@/lib/db/queries/submissions";
+import { getReportBySubmissionId } from "@/lib/db/queries/reports";
+import type { Grade, InvestmentTier, MetricId, ReportData } from "@/types/report";
 import { getInvestmentTier } from "@/lib/scoring/tier";
-import { formatDateLong } from "@/lib/utils/format";
+import {
+  formatDateLong,
+  excerptTitle,
+  INPUT_TYPE_LABELS,
+  STAGE_LABELS,
+} from "@/lib/utils/format";
 
-// Placeholder lookup until reports live in the DB (BLUEPRINT Phase 4):
-// overlays the requested row's identity onto the sample report body.
-function getReport(id: string): SampleReport | null {
+// The route param is a submission id for real data; sample ids (v-00x)
+// fall back to fixtures until real reports fully replace them.
+async function getReport(id: string, userId: string): Promise<SampleReport | null> {
   const row = sampleValidations.find((v) => v.id === id);
-  // Unscored rows have no report until the AI pipeline generates one.
-  if (!row || row.score === null || row.grade === null) return null;
+  if (row) {
+    if (row.score === null || row.grade === null) return null;
+    return {
+      ...sampleReport,
+      id: row.id,
+      business: row.business,
+      type: row.type,
+      date: row.date,
+      overallScore: row.score,
+      grade: row.grade,
+      investmentTier: getInvestmentTier(row.score),
+    };
+  }
+
+  const submission = await getSubmissionById(id).catch(() => null);
+  if (!submission || submission.userId !== userId) return null;
+  const report = await getReportBySubmissionId(id);
+  if (!report) return null;
+
   return {
-    ...sampleReport,
-    id: row.id,
-    business: row.business,
-    type: row.type,
-    date: row.date,
-    overallScore: row.score,
-    grade: row.grade,
-    investmentTier: getInvestmentTier(row.score),
+    id: submission.id,
+    business: excerptTitle(submission.rawText),
+    type: `${INPUT_TYPE_LABELS[submission.inputType] ?? submission.inputType} · ${STAGE_LABELS[submission.stage] ?? submission.stage}`,
+    region: report.regionContext ? "See report" : "—",
+    date: (report.createdAt ?? new Date()).toISOString(),
+    overallScore: report.overallScore,
+    grade: report.grade as Grade,
+    investmentTier: report.investmentTier as InvestmentTier,
+    weightsSnapshot: report.weightsSnapshot as Record<MetricId, number>,
+    reportData: report.reportData as ReportData,
   };
 }
 
@@ -32,7 +60,9 @@ export default async function ReportPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const report = getReport(id);
+  const user = await currentUser();
+  if (!user) notFound();
+  const report = await getReport(id, user.id);
   if (!report) notFound();
 
   return (

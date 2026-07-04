@@ -5,6 +5,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { ensureUser } from "@/lib/db/queries/users";
 import { createSubmission } from "@/lib/db/queries/submissions";
+import { inngest } from "@/lib/inngest";
 
 const submissionSchema = z.object({
   inputType: z.enum(["plan", "pitch", "financials", "idea"]),
@@ -64,7 +65,18 @@ export async function submitValidation(
       contentHash,
     });
 
-    // The Inngest event that starts the AI pipeline fires here in Phase 3F.
+    // Kick off the background AI pipeline. A failed send (e.g. local dev
+    // without the Inngest dev server) must not lose the submission — the
+    // report just stays pending until the pipeline runs.
+    try {
+      await inngest.send({
+        name: "validation/submitted",
+        data: { submissionId: submission.id },
+      });
+    } catch (error) {
+      console.error("inngest send failed:", error);
+    }
+
     return { ok: true, submissionId: submission.id };
   } catch {
     return { ok: false, error: "Could not save your submission. Try again." };

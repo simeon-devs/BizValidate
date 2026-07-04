@@ -86,3 +86,9 @@ export function formatDateLong(iso: string): string {
     year: "numeric",
   });
 }
+
+// Submissions have no business-name field; use the opening of the text.
+export function excerptTitle(rawText: string): string {
+  const clean = rawText.replace(/\s+/g, " ").trim();
+  return clean.length > 48 ? `${clean.slice(0, 48)}…` : clean;
+}

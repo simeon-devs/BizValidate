@@ -5,7 +5,13 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { NewValidationButton } from "@/components/dashboard/NewValidationButton";
 import { sampleValidations, type ValidationRow } from "@/lib/fixtures";
 import { getSubmissionsByUser } from "@/lib/db/queries/submissions";
-import { INPUT_TYPE_LABELS, STAGE_LABELS } from "@/lib/utils/format";
+import { getReportsByUser } from "@/lib/db/queries/reports";
+import type { Grade } from "@/types/report";
+import {
+  INPUT_TYPE_LABELS,
+  STAGE_LABELS,
+  excerptTitle,
+} from "@/lib/utils/format";
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -14,29 +20,32 @@ function greeting(): string {
   return "Good evening";
 }
 
-// Submissions have no business-name field; use the opening of the text.
-function excerptTitle(rawText: string): string {
-  const clean = rawText.replace(/\s+/g, " ").trim();
-  return clean.length > 48 ? `${clean.slice(0, 48)}…` : clean;
-}
-
 export default async function DashboardPage() {
   const user = await currentUser();
 
-  // Real submissions (unscored until the AI pipeline lands) ahead of the
-  // sample rows, which stay until reports are generated for real data.
+  // Real submissions ahead of the sample rows; scored ones carry their
+  // report's score/grade, the rest show as In Review until the pipeline runs.
   let submissionRows: ValidationRow[] = [];
   if (user) {
-    const submissions = await getSubmissionsByUser(user.id);
-    submissionRows = submissions.map((s) => ({
-      id: s.id,
-      business: excerptTitle(s.rawText),
-      type: `${INPUT_TYPE_LABELS[s.inputType] ?? s.inputType} · ${STAGE_LABELS[s.stage] ?? s.stage}`,
-      score: null,
-      grade: null,
-      date: (s.createdAt ?? new Date()).toISOString(),
-      status: "In Review" as const,
-    }));
+    const [submissions, reports] = await Promise.all([
+      getSubmissionsByUser(user.id),
+      getReportsByUser(user.id),
+    ]);
+    const reportBySubmission = new Map(
+      reports.map((r) => [r.submissionId, r] as const),
+    );
+    submissionRows = submissions.map((s) => {
+      const report = reportBySubmission.get(s.id);
+      return {
+        id: s.id,
+        business: excerptTitle(s.rawText),
+        type: `${INPUT_TYPE_LABELS[s.inputType] ?? s.inputType} · ${STAGE_LABELS[s.stage] ?? s.stage}`,
+        score: report ? Math.round(report.overallScore) : null,
+        grade: report ? (report.grade as Grade) : null,
+        date: (s.createdAt ?? new Date()).toISOString(),
+        status: report ? ("Validated" as const) : ("In Review" as const),
+      };
+    });
   }
 
   const data = [...submissionRows, ...sampleValidations];
