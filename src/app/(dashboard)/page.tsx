@@ -25,27 +25,35 @@ export default async function DashboardPage() {
 
   // Real submissions ahead of the sample rows; scored ones carry their
   // report's score/grade, the rest show as In Review until the pipeline runs.
+  // A DB outage degrades to the sample rows plus a notice instead of crashing
+  // the whole dashboard — raw query errors must never reach the frontend.
   let submissionRows: ValidationRow[] = [];
+  let loadFailed = false;
   if (user) {
-    const [submissions, reports] = await Promise.all([
-      getSubmissionsByUser(user.id),
-      getReportsByUser(user.id),
-    ]);
-    const reportBySubmission = new Map(
-      reports.map((r) => [r.submissionId, r] as const),
-    );
-    submissionRows = submissions.map((s) => {
-      const report = reportBySubmission.get(s.id);
-      return {
-        id: s.id,
-        business: excerptTitle(s.rawText),
-        type: `${INPUT_TYPE_LABELS[s.inputType] ?? s.inputType} · ${STAGE_LABELS[s.stage] ?? s.stage}`,
-        score: report ? Math.round(report.overallScore) : null,
-        grade: report ? (report.grade as Grade) : null,
-        date: (s.createdAt ?? new Date()).toISOString(),
-        status: report ? ("Validated" as const) : ("In Review" as const),
-      };
-    });
+    try {
+      const [submissions, reports] = await Promise.all([
+        getSubmissionsByUser(user.id),
+        getReportsByUser(user.id),
+      ]);
+      const reportBySubmission = new Map(
+        reports.map((r) => [r.submissionId, r] as const),
+      );
+      submissionRows = submissions.map((s) => {
+        const report = reportBySubmission.get(s.id);
+        return {
+          id: s.id,
+          business: excerptTitle(s.rawText),
+          type: `${INPUT_TYPE_LABELS[s.inputType] ?? s.inputType} · ${STAGE_LABELS[s.stage] ?? s.stage}`,
+          score: report ? Math.round(report.overallScore) : null,
+          grade: report ? (report.grade as Grade) : null,
+          date: (s.createdAt ?? new Date()).toISOString(),
+          status: report ? ("Validated" as const) : ("In Review" as const),
+        };
+      });
+    } catch (error) {
+      loadFailed = true;
+      console.error("dashboard: failed to load submissions/reports", error);
+    }
   }
 
   const data = [...submissionRows, ...sampleValidations];
@@ -69,6 +77,13 @@ export default async function DashboardPage() {
         </div>
         <NewValidationButton className="shrink-0" />
       </header>
+
+      {loadFailed ? (
+        <div className="mt-6 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
+          We couldn&apos;t load your validations right now &mdash; showing
+          sample data. Refresh in a moment to try again.
+        </div>
+      ) : null}
 
       {hasData ? (
         <>
