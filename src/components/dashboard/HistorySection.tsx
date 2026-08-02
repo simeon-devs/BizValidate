@@ -79,8 +79,9 @@ function HistoryRow({ v }: { v: ValidationRow }) {
     </>
   );
 
-  // Unscored submissions have no report to open yet.
-  if (v.score === null) {
+  // Unscored SAMPLE rows have nothing to open; real unscored submissions
+  // link to the report page's pending view, which polls until scored.
+  if (v.score === null && v.id.startsWith("v-")) {
     return <div className={rowClass}>{content}</div>;
   }
 

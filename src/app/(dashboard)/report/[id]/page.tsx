@@ -5,6 +5,7 @@ import { MetricsGrid } from "@/components/report/MetricsGrid";
 import { ReportSections } from "@/components/report/ReportSections";
 import { InvestorNotes } from "@/components/report/InvestorNotes";
 import { ReportActions } from "@/components/report/ReportActions";
+import { ReportPending } from "@/components/report/ReportPending";
 import { sampleReport, sampleValidations, type SampleReport } from "@/lib/fixtures";
 import { getSubmissionById } from "@/lib/db/queries/submissions";
 import { getReportBySubmissionId } from "@/lib/db/queries/reports";
@@ -17,9 +18,14 @@ import {
   STAGE_LABELS,
 } from "@/lib/utils/format";
 
+type PendingReport = { pending: true; id: string; business: string };
+
 // The route param is a submission id for real data; sample ids (v-00x)
 // fall back to fixtures until real reports fully replace them.
-async function getReport(id: string, userId: string): Promise<SampleReport | null> {
+async function getReport(
+  id: string,
+  userId: string,
+): Promise<SampleReport | PendingReport | null> {
   const row = sampleValidations.find((v) => v.id === id);
   if (row) {
     if (row.score === null || row.grade === null) return null;
@@ -38,7 +44,14 @@ async function getReport(id: string, userId: string): Promise<SampleReport | nul
   const submission = await getSubmissionById(id).catch(() => null);
   if (!submission || submission.userId !== userId) return null;
   const report = await getReportBySubmissionId(id);
-  if (!report) return null;
+  // Owned but not scored yet — the page renders the pending/polling view.
+  if (!report) {
+    return {
+      pending: true,
+      id: submission.id,
+      business: excerptTitle(submission.rawText),
+    };
+  }
 
   return {
     id: submission.id,
@@ -64,6 +77,10 @@ export default async function ReportPage({
   if (!user) notFound();
   const report = await getReport(id, user.id);
   if (!report) notFound();
+
+  if ("pending" in report) {
+    return <ReportPending id={report.id} business={report.business} />;
+  }
 
   return (
     <div className="mx-auto max-w-5xl">
