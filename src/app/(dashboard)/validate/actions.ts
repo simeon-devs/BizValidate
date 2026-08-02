@@ -6,6 +6,7 @@ import { z } from "zod";
 import { ensureUser } from "@/lib/db/queries/users";
 import { createSubmission } from "@/lib/db/queries/submissions";
 import { inngest } from "@/lib/inngest";
+import { isAppError } from "@/lib/utils/errors";
 
 const submissionSchema = z.object({
   inputType: z.enum(["plan", "pitch", "financials", "idea"]),
@@ -78,7 +79,13 @@ export async function submitValidation(
     }
 
     return { ok: true, submissionId: submission.id };
-  } catch {
+  } catch (error) {
+    // Log the real cause server-side; the client only ever sees a safe
+    // message (AppError messages are written to be user-facing).
+    console.error("submitValidation failed:", error);
+    if (isAppError(error)) {
+      return { ok: false, error: error.message };
+    }
     return { ok: false, error: "Could not save your submission. Try again." };
   }
 }
