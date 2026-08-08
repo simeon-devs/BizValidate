@@ -37,6 +37,9 @@ export const submissions = pgTable("submissions", {
   stage: text("stage").notNull(),
   rawText: text("raw_text").notNull(),
   fileUrl: text("file_url"),
+  // Market the founder is targeting. Drives regional enrichment; takes
+  // precedence over the region the extractor infers from the text.
+  targetRegion: text("target_region"),
   contentHash: text("content_hash").notNull(), // SHA-256 for drift detection
   embeddingId: text("embedding_id"),
   createdAt: timestamp("created_at").defaultNow(),

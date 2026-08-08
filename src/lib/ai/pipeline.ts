@@ -61,8 +61,12 @@ export async function runValidationPipeline(
   // [2] Haiku extraction (Llama via Groq on economy tier).
   const extraction = await extractFacts(submission.rawText, config.modelTier);
 
-  // [3] Tavily enrichment — additive; null when unavailable.
-  const regionContext = await enrichRegionalContext(extraction.facts);
+  // [3] Tavily enrichment — additive; null when unavailable. The founder's
+  // stated market wins over the region the extractor inferred from the text.
+  const regionContext = await enrichRegionalContext(
+    extraction.facts,
+    submission.targetRegion ?? undefined,
+  );
 
   // [4] Sonnet scoring at temp=0.1 against behavioral anchors.
   const scoreInput = {

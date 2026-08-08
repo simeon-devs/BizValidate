@@ -63,6 +63,7 @@ export async function submitValidation(
       stage: data.stage,
       rawText: data.text,
       fileUrl: data.fileUrl ?? null,
+      targetRegion: data.targetRegion ?? null,
       contentHash,
     });
 
