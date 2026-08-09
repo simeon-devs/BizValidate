@@ -6,6 +6,20 @@ import type { ExtractedFacts } from "./types";
 const TAVILY_ENDPOINT = "https://api.tavily.com/search";
 const CACHE_TTL_SECONDS = 24 * 60 * 60; // 24h per region (BLUEPRINT §8 step 3)
 const MAX_SOURCES = 5;
+
+// A market-research citation should be able to survive an investor clicking
+// it. Social and video platforms answer a different kind of question and
+// undercut the report's credibility even when the scorer declines to cite
+// them, because the source list is shown to the reader either way.
+const EXCLUDED_DOMAINS = [
+  "instagram.com",
+  "facebook.com",
+  "tiktok.com",
+  "x.com",
+  "twitter.com",
+  "pinterest.com",
+  "youtube.com",
+];
 const MAX_SUMMARY_CHARS = 4000;
 const MAX_SNIPPET_CHARS = 600;
 
@@ -35,9 +49,10 @@ export async function enrichRegionalContext(
   if (!region || region === "not stated") return null;
 
   const query = buildQuery(facts.industry, region);
-  // v2 key: entries are JSON now, so v1's plain strings must not be read back
-  // and parsed. Old keys simply expire.
-  const cacheKey = `region-ctx-v2:${normalize(region)}:${normalize(facts.industry)}`;
+  // Versioned key: bumped whenever the stored shape or the retrieval rules
+  // change, so entries fetched under the old rules are not served. Old keys
+  // simply expire. v2 = JSON shape, v3 = social domains excluded.
+  const cacheKey = `region-ctx-v3:${normalize(region)}:${normalize(facts.industry)}`;
 
   const cached = await cacheGet(cacheKey);
   if (cached) {
@@ -57,6 +72,7 @@ export async function enrichRegionalContext(
         search_depth: "basic",
         include_answer: true,
         max_results: MAX_SOURCES,
+        exclude_domains: EXCLUDED_DOMAINS,
       }),
     });
     if (!res.ok) return null;

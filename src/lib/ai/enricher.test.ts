@@ -57,6 +57,20 @@ describe("enrichRegionalContext", () => {
     expect(result!.query).toContain("Nigeria");
   });
 
+  it("asks Tavily to exclude social platforms", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      tavilyResponse({ answer: "a", results: [{ title: "t", url: "https://a.example/r", content: "c" }] }),
+    );
+
+    await enrichRegionalContext(FACTS);
+
+    const body = JSON.parse(
+      String(vi.mocked(fetch).mock.calls[0][1]?.body),
+    ) as { exclude_domains: string[] };
+    expect(body.exclude_domains).toContain("instagram.com");
+    expect(body.exclude_domains).toContain("tiktok.com");
+  });
+
   it("drops results that have no usable URL", async () => {
     vi.mocked(fetch).mockResolvedValue(
       tavilyResponse({
