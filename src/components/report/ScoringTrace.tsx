@@ -5,6 +5,7 @@ import type {
   ReportData,
 } from "@/types/report";
 import { METRIC_LABELS, METRIC_ORDER } from "@/lib/utils/format";
+import { identifyPreset } from "@/lib/scoring/presets";
 
 const STATUS_LABELS: Record<PipelineStep["status"], string> = {
   ran: "Ran",
@@ -159,6 +160,9 @@ export function ScoringTrace({
 }) {
   const trace = data.trace ?? [];
   const sources = data.sources ?? [];
+  // Name the rubric from the weights the report was actually scored with,
+  // never a hardcoded one — users can pick a preset or customise it.
+  const preset = identifyPreset(weights);
   // v1.0 reports predate evidence tracing; say so rather than showing blanks.
   const isLegacy = trace.length === 0;
 
@@ -219,7 +223,12 @@ export function ScoringTrace({
             <div className="flex justify-between gap-4 border-b border-border pb-2">
               <dt className="text-muted-foreground">Rubric</dt>
               <dd className="text-right text-foreground">
-                Bill Payne Angel Standard
+                {preset ? preset.name : "Custom weights"}
+                {preset ? (
+                  <span className="block text-[11px] text-subtle-foreground">
+                    {preset.source}
+                  </span>
+                ) : null}
               </dd>
             </div>
             <div className="flex justify-between gap-4 border-b border-border pb-2">

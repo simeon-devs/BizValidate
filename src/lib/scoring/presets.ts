@@ -66,4 +66,25 @@ export const WEIGHT_PRESETS: Record<WeightPresetId, WeightPreset> = {
   },
 };
 
-export const RECOMMENDED_PRESET: WeightPresetId = "payne"; // Reset button restores this
+// Reset button restores this, and it is what new users score against.
+//
+// Not "payne": the real Bill Payne method has six factors, so that preset
+// weights traction and scalability at 0 — a founder would see two of their
+// eight scores change nothing. The accelerator framework is an equally
+// citable rubric that does count them. Payne stays available, and stays
+// faithful to the published method, for anyone who wants the strict standard.
+export const RECOMMENDED_PRESET: WeightPresetId = "accelerator";
+
+// Names the rubric behind a stored weightsSnapshot so a report can say which
+// framework produced it. Returns null when a user has customised the weights.
+export function identifyPreset(
+  weights: Record<MetricId, number>,
+): WeightPreset | null {
+  return (
+    Object.values(WEIGHT_PRESETS).find((preset) =>
+      (Object.keys(preset.weights) as MetricId[]).every(
+        (id) => preset.weights[id] === weights[id],
+      ),
+    ) ?? null
+  );
+}
