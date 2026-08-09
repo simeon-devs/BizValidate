@@ -63,10 +63,11 @@ export async function runValidationPipeline(
 
   // [3] Tavily enrichment — additive; null when unavailable. The founder's
   // stated market wins over the region the extractor inferred from the text.
-  const regionContext = await enrichRegionalContext(
+  const enrichment = await enrichRegionalContext(
     extraction.facts,
     submission.targetRegion ?? undefined,
   );
+  const regionContext = enrichment?.summary ?? null;
 
   // [4] Sonnet scoring at temp=0.1 against behavioral anchors.
   const scoreInput = {
