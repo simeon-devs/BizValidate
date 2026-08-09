@@ -41,9 +41,7 @@ function StepRow({ step }: { step: PipelineStep }) {
           </span>
           {step.model ? (
             <span className="text-subtle-foreground">{step.model}</span>
-          ) : (
-            <span className="text-subtle-foreground">deterministic code</span>
-          )}
+          ) : null}
           <span className="text-subtle-foreground">
             {(step.durationMs / 1000).toFixed(1)}s
           </span>
