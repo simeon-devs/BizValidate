@@ -57,6 +57,11 @@ export interface SampleReport {
   investmentTier: InvestmentTier;
   weightsSnapshot: Record<MetricId, number>;
   reportData: ReportData;
+  // Provenance shown in the "How this score was produced" panel. Optional so
+  // the sample fixtures don't have to fake it.
+  promptVersion?: string;
+  scorerModel?: string;
+  fromCache?: boolean;
 }
 
 const SCORE = 87;

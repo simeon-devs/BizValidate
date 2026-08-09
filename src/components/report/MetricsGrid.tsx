@@ -1,5 +1,13 @@
-import type { MetricId, MetricScore } from "@/types/report";
+import type { MetricConfidence, MetricId, MetricScore } from "@/types/report";
 import { scoreColor, METRIC_LABELS, METRIC_ORDER } from "@/lib/utils/format";
+
+// How sure the scorer was that the evidence supports this number — the honest
+// signal that separates a well-backed score from a rubric-only inference.
+const CONFIDENCE_STYLES: Record<MetricConfidence, string> = {
+  high: "border-success/40 text-success",
+  medium: "border-warning/40 text-warning",
+  low: "border-danger/40 text-danger",
+};
 
 function MetricCard({
   id,
@@ -36,6 +44,22 @@ function MetricCard({
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground text-pretty">
         {metric.note}
       </p>
+
+      {/* v1.1 evidence badges. Absent on reports scored under v1.0. */}
+      {metric.confidence ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em]">
+          <span
+            className={`rounded border px-1.5 py-0.5 ${CONFIDENCE_STYLES[metric.confidence]}`}
+          >
+            {metric.confidence} confidence
+          </span>
+          {metric.sourceRefs && metric.sourceRefs.length > 0 ? (
+            <span className="text-subtle-foreground">
+              {metric.sourceRefs.map((ref) => `[S${ref}]`).join(" ")}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

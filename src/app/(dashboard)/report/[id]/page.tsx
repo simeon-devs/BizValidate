@@ -6,6 +6,7 @@ import { ReportSections } from "@/components/report/ReportSections";
 import { InvestorNotes } from "@/components/report/InvestorNotes";
 import { ReportActions } from "@/components/report/ReportActions";
 import { ReportPending } from "@/components/report/ReportPending";
+import { ScoringTrace } from "@/components/report/ScoringTrace";
 import { sampleReport, sampleValidations, type SampleReport } from "@/lib/fixtures";
 import { getSubmissionById } from "@/lib/db/queries/submissions";
 import { getReportBySubmissionId } from "@/lib/db/queries/reports";
@@ -64,6 +65,9 @@ async function getReport(
     investmentTier: report.investmentTier as InvestmentTier,
     weightsSnapshot: report.weightsSnapshot as Record<MetricId, number>,
     reportData: report.reportData as ReportData,
+    promptVersion: report.promptVersion,
+    scorerModel: report.scorerModel,
+    fromCache: report.fromCache ?? false,
   };
 }
 
@@ -112,6 +116,13 @@ export default async function ReportPage({
           weights={report.weightsSnapshot}
         />
         <ReportSections data={report.reportData} />
+        <ScoringTrace
+          data={report.reportData}
+          promptVersion={report.promptVersion}
+          scorerModel={report.scorerModel}
+          weights={report.weightsSnapshot}
+          fromCache={report.fromCache}
+        />
         <InvestorNotes notes={report.reportData.investorNotes} />
       </div>
     </div>
