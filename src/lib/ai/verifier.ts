@@ -12,7 +12,7 @@ import {
 } from "./prompts/verification";
 
 // Model assignment per CLAUDE.md: Claude Haiku 4.5 — cheap outlier detection.
-const VERIFIER_MODEL = "claude-haiku-4-5";
+export const VERIFIER_MODEL = "claude-haiku-4-5";
 
 // A score more than this far outside the verifier's anchor band flags the
 // metric for a selective re-run (BLUEPRINT consistency rule 6).

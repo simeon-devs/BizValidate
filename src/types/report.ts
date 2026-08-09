@@ -34,6 +34,17 @@ export interface RegionalContext {
   fetchedAt: string; // ISO timestamp
 }
 
+// One executed step of the fixed 6-step pipeline, recorded so a report can
+// explain how it was produced rather than asking to be taken on faith.
+export interface PipelineStep {
+  step: number; // 1-6, matching BLUEPRINT §8
+  name: string;
+  status: "ran" | "skipped" | "cached" | "failed";
+  detail: string;
+  model?: string;
+  durationMs: number;
+}
+
 export type MetricBasis = "regional-data" | "submission" | "rubric-inference";
 export type MetricConfidence = "high" | "medium" | "low";
 
@@ -56,6 +67,8 @@ export interface ReportData {
   // v1.1: the regional sources behind any cited claim. Absent on v1.0
   // reports and on reports scored without live enrichment.
   sources?: EnrichmentSource[];
+  // v1.1: how this report was produced, step by step. Absent on v1.0 reports.
+  trace?: PipelineStep[];
   verdict: string;
   stageAlignment: string;
   strengths: string[]; // 4 items

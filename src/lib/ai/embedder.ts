@@ -5,7 +5,7 @@ import { embeddings, submissions, reports } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 
 const EMBEDDING_ENDPOINT = "https://api.openai.com/v1/embeddings";
-const EMBEDDING_MODEL = "text-embedding-3-small"; // 1536 dims
+export const EMBEDDING_MODEL = "text-embedding-3-small"; // 1536 dims
 
 // Cosine similarity above this means "same business content" — return the
 // cached report instead of re-running the pipeline (BLUEPRINT drift gate).

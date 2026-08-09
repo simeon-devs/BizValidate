@@ -15,8 +15,14 @@ import { METRIC_ORDER } from "@/lib/utils/format";
 import { extractFacts } from "./extractor";
 import { enrichRegionalContext } from "./enricher";
 import { scoreSubmission, rescoreMetrics, type MetricScores } from "./scorer";
-import { findOutlierMetrics } from "./verifier";
-import { embedText, checkDriftGate, storeEmbedding } from "./embedder";
+import { findOutlierMetrics, VERIFIER_MODEL } from "./verifier";
+import {
+  embedText,
+  checkDriftGate,
+  storeEmbedding,
+  EMBEDDING_MODEL,
+} from "./embedder";
+import { PipelineTrace } from "./trace";
 
 const MAX_VERIFY_RETRIES = 2;
 
@@ -39,10 +45,22 @@ export async function runValidationPipeline(
   if (existing) return existing; // idempotency: pipeline already ran
 
   const config = await getConfigByUser(submission.userId);
+  const trace = new PipelineTrace();
 
   // [1] Drift gate — embed and compare against this user's prior submissions.
   const vector = await embedText(submission.rawText);
-  const driftHit = await checkDriftGate(submission.userId, vector);
+  const driftHit = await trace.record(
+    1,
+    "Duplicate check",
+    (hit) => ({
+      status: hit ? "cached" : "ran",
+      detail: hit
+        ? "Matched an earlier submission above 0.96 similarity — reused its report instead of re-scoring."
+        : "Embedded the submission and compared it to your earlier ones. No match above 0.96, so it was scored fresh.",
+      model: EMBEDDING_MODEL,
+    }),
+    () => checkDriftGate(submission.userId, vector),
+  );
   if (driftHit) {
     const cached = await getReportById(driftHit.reportId);
     if (cached) {
@@ -59,13 +77,33 @@ export async function runValidationPipeline(
   }
 
   // [2] Haiku extraction (Llama via Groq on economy tier).
-  const extraction = await extractFacts(submission.rawText, config.modelTier);
+  const extraction = await trace.record(
+    2,
+    "Fact extraction",
+    (result) => ({
+      status: "ran",
+      detail: `Pulled structured facts from your submission: industry, stage, team, traction, competitors and funding as stated (${result.facts.competitors.length} competitor(s) named).`,
+      model: result.model,
+    }),
+    () => extractFacts(submission.rawText, config.modelTier),
+  );
 
   // [3] Tavily enrichment — additive; null when unavailable. The founder's
   // stated market wins over the region the extractor inferred from the text.
-  const enrichment = await enrichRegionalContext(
-    extraction.facts,
-    submission.targetRegion ?? undefined,
+  const enrichment = await trace.record(
+    3,
+    "Market research",
+    (result) => ({
+      status: result ? "ran" : "skipped",
+      detail: result
+        ? `Searched "${result.query}" and kept ${result.sources.length} citable source(s). Cached 24h.`
+        : "No live market data was retrieved, so scores rest on your submission alone. Metrics that would need external evidence are marked low confidence.",
+    }),
+    () =>
+      enrichRegionalContext(
+        extraction.facts,
+        submission.targetRegion ?? undefined,
+      ),
   );
   const regionContext = enrichment?.summary ?? null;
 
@@ -77,10 +115,21 @@ export async function runValidationPipeline(
     regionContext,
     sources: enrichment?.sources ?? [],
   };
-  const scored = await scoreSubmission(scoreInput);
+  const scored = await trace.record(
+    4,
+    "Scoring",
+    (result) => ({
+      status: "ran",
+      detail: `Scored all ${METRIC_ORDER.length} metrics against the Bill Payne behavioral anchors at temperature 0.1, using prompt ${result.promptVersion}.`,
+      model: result.scorerModel,
+    }),
+    () => scoreSubmission(scoreInput),
+  );
   let metrics: MetricScores = scored.metrics;
 
   // [5] Haiku verification — selective re-run of outlier metrics, max 2 rounds.
+  const verifyStart = Date.now();
+  const rescoredIds: MetricId[] = [];
   for (let attempt = 0; attempt < MAX_VERIFY_RETRIES; attempt++) {
     const outliers = await findOutlierMetrics(
       extraction.facts,
@@ -94,19 +143,40 @@ export async function runValidationPipeline(
     for (const id of outliers) {
       const metric = rescored[id];
       if (metric) metric.rescored = true;
+      rescoredIds.push(id);
     }
     metrics = { ...metrics, ...rescored };
   }
+  trace.add({
+    step: 5,
+    name: "Outlier check",
+    status: rescoredIds.length > 0 ? "ran" : "skipped",
+    detail:
+      rescoredIds.length > 0
+        ? `Flagged ${rescoredIds.join(", ")} as more than 15 points outside the expected anchor band and re-scored ${rescoredIds.length === 1 ? "it" : "them"}.`
+        : "Every metric landed inside its expected anchor band, so nothing needed re-scoring.",
+    model: VERIFIER_MODEL,
+    durationMs: Date.now() - verifyStart,
+  });
 
   // [6] Deterministic aggregation — code only, never the LLM.
+  const aggregateStart = Date.now();
   const metricScores = Object.fromEntries(
     METRIC_ORDER.map((id) => [id, metrics[id].score]),
   ) as Record<MetricId, number>;
   const overallScore = aggregateScore(metricScores, config.weights);
+  trace.add({
+    step: 6,
+    name: "Final score",
+    status: "ran",
+    detail: `Weighted sum computed in code, not by a language model: ${METRIC_ORDER.map((id) => `${id} ${metricScores[id]}×${config.weights[id]}%`).join(" + ")} = ${overallScore}.`,
+    durationMs: Date.now() - aggregateStart,
+  });
 
   const reportData: ReportData = {
     metrics,
     sources: enrichment?.sources ?? [],
+    trace: trace.toArray(),
     verdict: scored.narrative.verdict,
     stageAlignment: scored.narrative.stageAlignment,
     strengths: scored.narrative.strengths,
