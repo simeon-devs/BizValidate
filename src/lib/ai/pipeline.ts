@@ -64,12 +64,19 @@ export async function runValidationPipeline(
   if (driftHit) {
     const cached = await getReportById(driftHit.reportId);
     if (cached) {
+      // Carry over the original's scores and sources, but never its trace:
+      // that describes a run this submission did not have. This one gets the
+      // trace of what actually happened — a cache hit.
       const copied = await createReport({
         ...cached,
         id: undefined,
         submissionId,
         fromCache: true,
         createdAt: undefined,
+        reportData: {
+          ...(cached.reportData as ReportData),
+          trace: trace.toArray(),
+        },
       });
       await storeEmbedding(submissionId, vector);
       return copied;
