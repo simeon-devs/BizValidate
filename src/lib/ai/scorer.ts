@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/utils/errors";
-import type { MetricId } from "@/types/report";
+import type { EnrichmentSource, MetricId, MetricScore } from "@/types/report";
 import type { ExtractedFacts } from "./types";
 import {
   SCORING_SYSTEM_PROMPT,
@@ -25,6 +25,13 @@ const metricScoreSchema = z.object({
   note: z.string(),
   strength: z.string(),
   gap: z.string(),
+  // v1.1 audit fields. Lenient by design: a model that omits or garbles one
+  // of these should not fail an otherwise valid score — the field just goes
+  // missing and the UI reports it as unstated.
+  anchorBand: z.string().optional(),
+  basis: z.enum(["regional-data", "submission", "rubric-inference"]).optional(),
+  confidence: z.enum(["high", "medium", "low"]).optional(),
+  sourceRefs: z.array(z.number().int().positive()).optional(),
 });
 
 const narrativeSchema = z.object({
@@ -38,7 +45,10 @@ const narrativeSchema = z.object({
   investorNotes: z.string(),
 });
 
-export type MetricScores = Record<MetricId, z.infer<typeof metricScoreSchema>>;
+// The zod schema above validates what the model returns; MetricScore in
+// src/types is the canonical domain shape and additionally carries fields the
+// pipeline sets itself (rescored).
+export type MetricScores = Record<MetricId, MetricScore>;
 export type ScoringNarrative = z.infer<typeof narrativeSchema>;
 
 export interface ScoringResult {
@@ -53,6 +63,7 @@ export interface ScoreInput {
   facts: ExtractedFacts;
   stage: string;
   regionContext: string | null;
+  sources: EnrichmentSource[];
 }
 
 // Full scoring pass: all 8 metrics + the written report sections.
@@ -69,6 +80,7 @@ export async function scoreSubmission(input: ScoreInput): Promise<ScoringResult>
   assertAllMetrics(parsed.data.metrics);
 
   const { metrics, ...narrative } = parsed.data;
+  pruneInvalidSourceRefs(metrics as MetricScores, input.sources);
   return {
     metrics: metrics as MetricScores,
     narrative,
@@ -91,7 +103,10 @@ export async function rescoreMetrics(
   if (!parsed.success) {
     throw new AppError("Rescore output did not match schema.", "scoring_invalid");
   }
-  return parsed.data.metrics as Partial<MetricScores>;
+  return pruneInvalidSourceRefs(
+    parsed.data.metrics as Partial<MetricScores>,
+    input.sources,
+  );
 }
 
 async function callScorer(
@@ -101,7 +116,9 @@ async function callScorer(
 ): Promise<unknown> {
   const response = await anthropic.messages.create({
     model: SCORER_MODEL,
-    max_tokens: 4096,
+    // v1.1 adds four audit fields per metric on top of the narrative; 4096
+    // left no headroom and truncation surfaces as scoring_unparseable.
+    max_tokens: 8192,
     temperature: SCORER_TEMPERATURE,
     system: SCORING_SYSTEM_PROMPT,
     messages: [
@@ -112,6 +129,7 @@ async function callScorer(
           facts: input.facts,
           stage: input.stage,
           regionContext: input.regionContext,
+          sources: input.sources,
           metricIds,
           includeNarrative,
         }),
@@ -135,6 +153,21 @@ function parseJson(text: string): unknown {
   } catch {
     throw new AppError("Scorer returned unparseable output.", "scoring_unparseable");
   }
+}
+
+// A citation is only worth something if it points at a source we actually
+// supplied. Drop any id the model invented rather than surfacing a dead
+// reference in the report.
+function pruneInvalidSourceRefs<T extends Partial<MetricScores>>(
+  metrics: T,
+  sources: EnrichmentSource[],
+): T {
+  const validIds = new Set(sources.map((s) => s.id));
+  for (const metric of Object.values(metrics)) {
+    if (!metric?.sourceRefs) continue;
+    metric.sourceRefs = metric.sourceRefs.filter((id) => validIds.has(id));
+  }
+  return metrics;
 }
 
 function assertAllMetrics(metrics: Partial<MetricScores>): void {

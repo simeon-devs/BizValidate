@@ -1,11 +1,11 @@
-import type { MetricId } from "@/types/report";
+import type { EnrichmentSource, MetricId } from "@/types/report";
 import type { ExtractedFacts } from "../types";
 import { METRIC_LABELS } from "@/lib/utils/format";
 
 // Any change to this prompt (including the anchors) must bump PROMPT_VERSION.
 // Old reports keep the version they were scored with — scores never
 // retroactively change (CLAUDE.md score-consistency rules).
-export const PROMPT_VERSION = "v1.0";
+export const PROMPT_VERSION = "v1.1";
 
 // Behavioral anchors (BLUEPRINT §9) — the LLM calibrates against explicit
 // descriptions at 20/40/60/80/100 instead of open-range guessing.
@@ -74,13 +74,22 @@ Rules:
 - Base scores only on the extracted facts, submission text, and regional context provided. Do not reward claims with no supporting evidence.
 - Judge relative to the declared business stage: an idea-stage business is not penalized for lacking audited financials, but it cannot score high on traction it does not have.
 - "No competition" claims are a red flag per the COMPETITIVE anchor.
-- Respond with a single JSON object exactly matching the requested structure. No markdown fences, no commentary.`;
+- Respond with a single JSON object exactly matching the requested structure. No markdown fences, no commentary.
+
+Every score must be auditable. For each metric also report:
+- anchorBand: the two anchor levels the score sits between, as "60-80". Use "0-20" below the lowest anchor and "100" only for an exact top score.
+- basis: "regional-data" if the score draws on the regional sources provided, "submission" if it rests on what the founder wrote, "rubric-inference" if there is little evidence and you are calibrating from the anchors alone.
+- confidence: "high" only when the claim is backed by regional sources or specific figures in the submission; "medium" when the submission is clear but unverified; "low" when evidence is thin or absent.
+- sourceRefs: the ids of regional sources you actually used, e.g. [1, 3]. Use [] when none. Never cite an id that was not provided to you.
+
+Stating that evidence is missing is required, not optional. A low-confidence score with an honest gap is correct; inventing support for a claim is a failure.`;
 
 export interface ScoringPromptInput {
   rawText: string;
   facts: ExtractedFacts;
   stage: string;
   regionContext: string | null;
+  sources: EnrichmentSource[];
   metricIds: MetricId[];
   includeNarrative: boolean;
 }
@@ -109,7 +118,8 @@ Declared stage: ${input.stage}
 Extracted facts:
 ${JSON.stringify(input.facts, null, 2)}
 
-${input.regionContext ? `Live regional market context:\n${input.regionContext}\n` : ""}
+${input.regionContext ? `Live regional market context:\n${input.regionContext}\n` : "No live regional market data was available for this submission. Do not invent any; mark regionally-dependent metrics accordingly.\n"}
+${input.sources.length > 0 ? `Regional sources — cite these ids in sourceRefs:\n${input.sources.map((s) => `[S${s.id}] ${s.title} — ${s.url}`).join("\n")}\n` : ""}
 Original submission:
 <submission>
 ${input.rawText}
@@ -128,7 +138,11 @@ Respond with JSON of this exact shape:
       "score": <0-100 integer>,
       "note": "2-line justification",
       "strength": "strongest aspect of this metric",
-      "gap": "biggest gap in this metric"
+      "gap": "biggest gap in this metric",
+      "anchorBand": "<e.g. 60-80>",
+      "basis": "regional-data" | "submission" | "rubric-inference",
+      "confidence": "high" | "medium" | "low",
+      "sourceRefs": [<source ids actually used, or empty>]
     }
   }${narrativeSpec}
 }`;

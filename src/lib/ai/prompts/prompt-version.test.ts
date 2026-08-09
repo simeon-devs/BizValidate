@@ -30,6 +30,9 @@ const GOLDEN: Record<string, Record<string, string>> = {
   },
   scoring: {
     "v1.0": "e334ed5df0e8f1e50a7f3f29980cd4638a8db59a211447f0f8086a1f9e8ca4c5",
+    // v1.1 — per-metric audit fields (anchorBand, basis, confidence,
+    // sourceRefs) and cited regional sources.
+    "v1.1": "20d95b6900dd1a3c71270ed5640d2dd9c948cf24b1d1f0e7dc8b88fa74f0dc08",
   },
   verification: {
     "v1.0": "7bf164804928970080a16d920a12ebac4196e69cdd8fffa0ffc4ee576b42afd8",
@@ -51,6 +54,7 @@ const scoringPrompt =
     facts: FIXTURE_FACTS,
     stage: FIXTURE_FACTS.stage,
     regionContext: null,
+    sources: [],
     metricIds: METRIC_ORDER,
     includeNarrative: true,
   });

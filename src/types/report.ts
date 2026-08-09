@@ -34,15 +34,28 @@ export interface RegionalContext {
   fetchedAt: string; // ISO timestamp
 }
 
+export type MetricBasis = "regional-data" | "submission" | "rubric-inference";
+export type MetricConfidence = "high" | "medium" | "low";
+
 export interface MetricScore {
   score: number;
   note: string;
   strength: string;
   gap: string;
+  // Audit fields, added in prompt v1.1. Optional: reports scored under v1.0
+  // predate them and must keep rendering unchanged.
+  anchorBand?: string; // anchor levels the score sits between, e.g. "60-80"
+  basis?: MetricBasis;
+  confidence?: MetricConfidence;
+  sourceRefs?: number[]; // EnrichmentSource.id values actually used
+  rescored?: boolean; // verifier flagged it as an outlier and re-ran it
 }
 
 export interface ReportData {
   metrics: Record<MetricId, MetricScore>;
+  // v1.1: the regional sources behind any cited claim. Absent on v1.0
+  // reports and on reports scored without live enrichment.
+  sources?: EnrichmentSource[];
   verdict: string;
   stageAlignment: string;
   strengths: string[]; // 4 items

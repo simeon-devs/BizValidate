@@ -26,6 +26,7 @@ describe("scoring consistency (live)", () => {
         facts,
         stage: "early-revenue",
         regionContext: null,
+        sources: [],
       };
       const weights = WEIGHT_PRESETS[RECOMMENDED_PRESET].weights;
 

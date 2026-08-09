@@ -75,6 +75,7 @@ export async function runValidationPipeline(
     facts: extraction.facts,
     stage: submission.stage,
     regionContext,
+    sources: enrichment?.sources ?? [],
   };
   const scored = await scoreSubmission(scoreInput);
   let metrics: MetricScores = scored.metrics;
@@ -88,6 +89,12 @@ export async function runValidationPipeline(
     );
     if (outliers.length === 0) break;
     const rescored = await rescoreMetrics(scoreInput, outliers);
+    // Flag the re-run so the report can show which metrics the verifier
+    // corrected rather than presenting every score as first-pass.
+    for (const id of outliers) {
+      const metric = rescored[id];
+      if (metric) metric.rescored = true;
+    }
     metrics = { ...metrics, ...rescored };
   }
 
@@ -99,6 +106,7 @@ export async function runValidationPipeline(
 
   const reportData: ReportData = {
     metrics,
+    sources: enrichment?.sources ?? [],
     verdict: scored.narrative.verdict,
     stageAlignment: scored.narrative.stageAlignment,
     strengths: scored.narrative.strengths,
