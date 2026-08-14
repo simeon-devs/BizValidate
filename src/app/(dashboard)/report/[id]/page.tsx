@@ -7,6 +7,7 @@ import { InvestorNotes } from "@/components/report/InvestorNotes";
 import { ReportActions } from "@/components/report/ReportActions";
 import { ReportPending } from "@/components/report/ReportPending";
 import { ScoringTrace } from "@/components/report/ScoringTrace";
+import { PrintExpander } from "@/components/report/PrintExpander";
 import { sampleReport, sampleValidations, type SampleReport } from "@/lib/fixtures";
 import { getSubmissionById } from "@/lib/db/queries/submissions";
 import { getReportBySubmissionId } from "@/lib/db/queries/reports";
@@ -88,6 +89,7 @@ export default async function ReportPage({
 
   return (
     <div className="mx-auto max-w-5xl">
+      <PrintExpander />
       <div className="sticky top-4 z-20 mb-8 flex flex-col gap-4 rounded-xl border border-border bg-surface/95 p-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between md:p-6">
         <header className="flex flex-col gap-1">
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-subtle-foreground">

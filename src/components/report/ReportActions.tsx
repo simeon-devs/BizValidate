@@ -26,7 +26,8 @@ export function ReportActions({ report }: { report: SampleReport }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    // Interactive controls must not print into the static document.
+    <div className="flex items-center gap-2 print-hide">
       <button
         type="button"
         onClick={handleExport}

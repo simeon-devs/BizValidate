@@ -154,3 +154,87 @@
   outline: 1px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ---------------------------------------------------------------------------
+   Print
+
+   The report is the artifact a founder forwards to an investor, so printing
+   must produce a document rather than a screenshot of the app. Screen chrome
+   is dropped, the evidence panel is forced open (its sources are cited by
+   number in the metric cards, so printing them collapsed leaves dangling
+   references), and colours are flattened for paper.
+
+   Browser-added page headers and footers are a print-dialog setting and
+   cannot be removed from here; uncheck "Headers and footers" when printing.
+--------------------------------------------------------------------------- */
+@media print {
+  /* Paper, not the dark UI. */
+  :root,
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 16mm 14mm;
+  }
+
+  /* App chrome has no meaning on paper. */
+  aside,
+  nav,
+  header nav,
+  [data-print-hide],
+  .print-hide {
+    display: none !important;
+  }
+
+  /* The floating action bar must never freeze into a static document. */
+  .sticky {
+    position: static !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Layout is padded for a sidebar that is no longer there. */
+  .md\:pl-60 {
+    padding-left: 0 !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+
+  /* The evidence panel is opened by PrintExpander before printing — CSS
+     cannot reveal a collapsed <details>, Chrome drops its content entirely.
+     It starts on its own page because it is the appendix of the report. */
+  details {
+    break-before: page;
+  }
+
+  /* Cards read as sections on paper, and must not split mid-thought. */
+  section,
+  table,
+  li {
+    break-inside: avoid;
+  }
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+
+  /* Flatten surfaces so text stays legible in ink. */
+  .bg-card,
+  .bg-surface,
+  .bg-input,
+  .bg-background {
+    background: transparent !important;
+  }
+
+  /* Show where a citation actually points. */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 9px;
+    word-break: break-all;
+  }
+}
