@@ -1,12 +1,18 @@
-import type { MetricConfidence, MetricId, MetricScore } from "@/types/report";
-import { scoreColor, METRIC_LABELS, METRIC_ORDER } from "@/lib/utils/format";
+import type { MetricBasis, MetricId, MetricScore } from "@/types/report";
+import {
+  scoreColor,
+  METRIC_LABELS,
+  METRIC_ORDER,
+  EVIDENCE_LABELS,
+} from "@/lib/utils/format";
 
-// How sure the scorer was that the evidence supports this number — the honest
-// signal that separates a well-backed score from a rubric-only inference.
-const CONFIDENCE_STYLES: Record<MetricConfidence, string> = {
-  high: "border-success/40 text-success",
-  medium: "border-warning/40 text-warning",
-  low: "border-danger/40 text-danger",
+// Evidence class leads, because it is the honest signal: externally checked,
+// the founder's own claim, or inferred from the rubric. Confidence is shown
+// after it, where it can only be read as a qualifier rather than a verdict.
+const BASIS_STYLES: Record<MetricBasis, string> = {
+  "regional-data": "border-success/40 text-success",
+  submission: "border-warning/40 text-warning",
+  "rubric-inference": "border-danger/40 text-danger",
 };
 
 function MetricCard({
@@ -46,18 +52,28 @@ function MetricCard({
       </p>
 
       {/* v1.1 evidence badges. Absent on reports scored under v1.0. */}
-      {metric.confidence ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em]">
-          <span
-            className={`rounded border px-1.5 py-0.5 ${CONFIDENCE_STYLES[metric.confidence]}`}
-          >
-            {metric.confidence} confidence
-          </span>
-          {metric.sourceRefs && metric.sourceRefs.length > 0 ? (
-            <span className="text-subtle-foreground">
-              {metric.sourceRefs.map((ref) => `[S${ref}]`).join(" ")}
+      {metric.basis ? (
+        <div className="mt-3 flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em]">
+            <span
+              className={`rounded border px-1.5 py-0.5 ${BASIS_STYLES[metric.basis]}`}
+            >
+              {EVIDENCE_LABELS[metric.basis].label}
             </span>
-          ) : null}
+            {metric.sourceRefs && metric.sourceRefs.length > 0 ? (
+              <span className="text-subtle-foreground">
+                {metric.sourceRefs.map((ref) => `[S${ref}]`).join(" ")}
+              </span>
+            ) : null}
+            {metric.confidence ? (
+              <span className="text-subtle-foreground">
+                {metric.confidence} confidence in this reading
+              </span>
+            ) : null}
+          </div>
+          <p className="text-[11px] leading-snug text-subtle-foreground">
+            {EVIDENCE_LABELS[metric.basis].blurb}
+          </p>
         </div>
       ) : null}
     </div>

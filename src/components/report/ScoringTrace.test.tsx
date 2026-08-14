@@ -74,6 +74,26 @@ describe("ScoringTrace", () => {
     expect(html).toContain("v1.0");
   });
 
+  it("labels an unverified founder claim as Stated, not as high confidence", () => {
+    // The failure this guards against: a score resting only on the
+    // submission being presented as though someone checked it.
+    const data: ReportData = {
+      metrics: metrics({ basis: "submission", confidence: "high", sourceRefs: [] }),
+      sources: [],
+      trace: [],
+      ...NARRATIVE,
+    };
+
+    const html = renderToStaticMarkup(
+      <ScoringTrace data={data} weights={weights} />,
+    );
+
+    expect(html).toContain("Stated");
+    expect(html).toContain("Not independently verified");
+    // The bare phrase must not appear as a standalone verdict.
+    expect(html).not.toMatch(/high confidence(?! in this reading)/i);
+  });
+
   it("reports a cached result honestly", () => {
     const data: ReportData = { metrics: metrics(), trace: [], ...NARRATIVE };
 

@@ -1,4 +1,26 @@
-import type { Grade, MetricId } from "@/types/report";
+import type { Grade, MetricBasis, MetricId } from "@/types/report";
+
+// What a score actually rests on. This is the label the reader must see
+// first: "high confidence" invites them to hear "we checked this", when for
+// anything drawn from the submission it only means "the document says this
+// clearly". Naming the evidence class removes that false impression.
+export const EVIDENCE_LABELS: Record<
+  MetricBasis,
+  { label: string; blurb: string }
+> = {
+  "regional-data": {
+    label: "Evidenced",
+    blurb: "Supported by the external sources cited below.",
+  },
+  submission: {
+    label: "Stated",
+    blurb: "Taken from the submission. Not independently verified.",
+  },
+  "rubric-inference": {
+    label: "Inferred",
+    blurb: "Little evidence available; calibrated against the rubric only.",
+  },
+};
 
 export const METRIC_LABELS: Record<MetricId, string> = {
   team: "Team",

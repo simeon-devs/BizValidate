@@ -4,7 +4,11 @@ import type {
   PipelineStep,
   ReportData,
 } from "@/types/report";
-import { METRIC_LABELS, METRIC_ORDER } from "@/lib/utils/format";
+import {
+  METRIC_LABELS,
+  METRIC_ORDER,
+  EVIDENCE_LABELS,
+} from "@/lib/utils/format";
 import { identifyPreset } from "@/lib/scoring/presets";
 
 const STATUS_LABELS: Record<PipelineStep["status"], string> = {
@@ -84,8 +88,8 @@ function EvidenceTable({ data }: { data: ReportData }) {
             <th className="pb-2 font-normal">Metric</th>
             <th className="pb-2 font-normal">Score</th>
             <th className="pb-2 font-normal">Anchor band</th>
-            <th className="pb-2 font-normal">Based on</th>
-            <th className="pb-2 font-normal">Confidence</th>
+            <th className="pb-2 font-normal">Evidence</th>
+            <th className="pb-2 font-normal">Reading</th>
             <th className="pb-2 font-normal">Sources</th>
           </tr>
         </thead>
@@ -109,7 +113,7 @@ function EvidenceTable({ data }: { data: ReportData }) {
                   {metric.anchorBand ?? "—"}
                 </td>
                 <td className="py-2 pr-4 text-xs text-muted-foreground">
-                  {metric.basis ?? "—"}
+                  {metric.basis ? EVIDENCE_LABELS[metric.basis].label : "—"}
                 </td>
                 <td className="py-2 pr-4 text-xs text-muted-foreground">
                   {metric.confidence ?? "—"}
@@ -177,10 +181,10 @@ export function ScoringTrace({
             Every step, every source, and the arithmetic behind the final number.
           </p>
         </div>
-        <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-subtle-foreground group-open:hidden">
+        <span className="print-hide shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-subtle-foreground group-open:hidden">
           Show
         </span>
-        <span className="hidden shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-subtle-foreground group-open:inline">
+        <span className="print-hide hidden shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-subtle-foreground group-open:inline">
           Hide
         </span>
       </summary>
@@ -204,6 +208,27 @@ export function ScoringTrace({
 
         <Section title="Evidence per metric">
           <EvidenceTable data={data} />
+          <dl className="mt-1 flex flex-col gap-1 text-[11px] leading-snug text-subtle-foreground">
+            {(
+              Object.keys(EVIDENCE_LABELS) as (keyof typeof EVIDENCE_LABELS)[]
+            ).map((basis) => (
+              <div key={basis} className="flex gap-2">
+                <dt className="w-20 shrink-0 font-mono uppercase tracking-[0.12em]">
+                  {EVIDENCE_LABELS[basis].label}
+                </dt>
+                <dd>{EVIDENCE_LABELS[basis].blurb}</dd>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <dt className="w-20 shrink-0 font-mono uppercase tracking-[0.12em]">
+                Reading
+              </dt>
+              <dd>
+                How clearly the underlying claim was expressed &mdash; not
+                whether it is true.
+              </dd>
+            </div>
+          </dl>
         </Section>
 
         <Section title={`Sources (${sources.length})`}>
