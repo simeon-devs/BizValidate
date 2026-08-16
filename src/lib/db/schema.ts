@@ -6,6 +6,7 @@ import {
   jsonb,
   boolean,
   uuid,
+  unique,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
@@ -72,6 +73,31 @@ export const reports = pgTable("reports", {
   regionContext: text("region_context"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// A user's curated view of the web for regional enrichment: domains they
+// trust (favorites, surfaced when relevant) and domains the AI must never
+// cite (blocked). Shapes step 3's inputs only — never the prompt or scorer.
+export const sourcePreferences = pgTable(
+  "source_preferences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    kind: text("kind").notNull(), // 'favorite' | 'blocked'
+    domain: text("domain").notNull(), // normalized hostname: no protocol, www, or path
+    label: text("label"),
+    // Seeds sector-scoped lists later (matched against ExtractedFacts.industry).
+    // No v1 UI writes it; present so it never needs a backfill.
+    sector: text("sector"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    // A domain is either favorited or blocked for a user, never both — the
+    // query layer's upsert flips kind on conflict rather than erroring.
+    unique("source_preferences_user_domain").on(table.userId, table.domain),
+  ],
+);
 
 export const embeddings = pgTable("embeddings", {
   id: uuid("id").primaryKey().defaultRandom(),
