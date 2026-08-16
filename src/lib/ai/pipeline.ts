@@ -7,6 +7,7 @@ import {
   type ReportRow,
 } from "@/lib/db/queries/reports";
 import { getConfigByUser } from "@/lib/db/queries/configs";
+import { getPreferencesByUser } from "@/lib/db/queries/sourcePreferences";
 import { aggregateScore } from "@/lib/scoring/aggregate";
 import { getGrade } from "@/lib/scoring/grade";
 import { getInvestmentTier } from "@/lib/scoring/tier";
@@ -97,19 +98,23 @@ export async function runValidationPipeline(
 
   // [3] Tavily enrichment — additive; null when unavailable. The founder's
   // stated market wins over the region the extractor inferred from the text.
+  // The user's source preferences shape what is searched and what may be
+  // cited; they never touch the prompt or the scorer.
+  const preferences = await getPreferencesByUser(submission.userId);
   const enrichment = await trace.record(
     3,
     "Market research",
     (result) => ({
       status: result ? "ran" : "skipped",
       detail: result
-        ? `Searched "${result.query}" and kept ${result.sources.length} citable source(s). Cached 24h.`
+        ? `Searched "${result.query}" and kept ${result.sources.length} citable source(s).${preferences.blocked.length > 0 ? ` ${preferences.blocked.length} blocked domain(s) excluded.` : ""} Cached 24h.`
         : "No live market data was retrieved, so scores rest on your submission alone. Metrics that would need external evidence are marked low confidence.",
     }),
     () =>
       enrichRegionalContext(
         extraction.facts,
         submission.targetRegion ?? undefined,
+        { blockedDomains: preferences.blocked },
       ),
   );
   const regionContext = enrichment?.summary ?? null;
