@@ -189,6 +189,133 @@ describe("enrichRegionalContext", () => {
     });
   });
 
+  describe("favorite domains", () => {
+    it("makes exactly ONE Tavily call when the user has no favorites", async () => {
+      // The common case must not change: no extra call, no extra credit.
+      vi.mocked(fetch).mockResolvedValue(
+        tavilyResponse({ answer: "a", results: [{ title: "t", url: "https://a.example/r", content: "c" }] }),
+      );
+
+      await enrichRegionalContext(FACTS, undefined, { favoriteDomains: [] });
+
+      expect(fetch).toHaveBeenCalledTimes(1);
+      const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as Record<string, unknown>;
+      expect(body).not.toHaveProperty("include_domains");
+    });
+
+    it("runs a second favorites-scoped call and never restricts the broad search", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        tavilyResponse({ answer: "a", results: [{ title: "t", url: "https://a.example/r", content: "c" }] }),
+      );
+
+      await enrichRegionalContext(FACTS, undefined, {
+        favoriteDomains: ["trusted.example"],
+      });
+
+      expect(fetch).toHaveBeenCalledTimes(2);
+      const bodies = vi.mocked(fetch).mock.calls.map(
+        (c) => JSON.parse(String(c[1]?.body)) as Record<string, unknown>,
+      );
+      const broad = bodies.find((b) => !("include_domains" in b));
+      const scoped = bodies.find((b) => "include_domains" in b);
+      // The broad query is unrestricted; only the second call is whitelisted.
+      expect(broad).toBeDefined();
+      expect(scoped?.include_domains).toEqual(["trusted.example"]);
+    });
+
+    it("places favorites first (up to the reserved slots), fills from broad, dedupes by URL, renumbers", async () => {
+      vi.mocked(fetch).mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body)) as { include_domains?: string[] };
+        if (body.include_domains) {
+          return tavilyResponse({
+            results: [
+              { title: "Fav 1", url: "https://trusted.example/1", content: "f1" },
+              { title: "Fav 2", url: "https://trusted.example/2", content: "f2" },
+              { title: "Fav 3", url: "https://trusted.example/3", content: "f3" }, // exceeds slots
+            ],
+          });
+        }
+        return tavilyResponse({
+          answer: "Broad answer.",
+          results: [
+            { title: "Dup of fav 1", url: "https://trusted.example/1", content: "dup" }, // deduped
+            { title: "Broad A", url: "https://a.example/1", content: "a" },
+            { title: "Broad B", url: "https://b.example/1", content: "b" },
+            { title: "Broad C", url: "https://c.example/1", content: "c" },
+            { title: "Broad D", url: "https://d.example/1", content: "d" },
+          ],
+        });
+      });
+
+      const result = await enrichRegionalContext(FACTS, undefined, {
+        favoriteDomains: ["trusted.example"],
+      });
+
+      expect(result!.sources.map((s) => s.url)).toEqual([
+        "https://trusted.example/1", // favorite slot 1
+        "https://trusted.example/2", // favorite slot 2 (slot cap = 2)
+        "https://a.example/1", // broad fills the rest
+        "https://b.example/1",
+        "https://c.example/1",
+      ]);
+      expect(result!.sources.map((s) => s.id)).toEqual([1, 2, 3, 4, 5]);
+      // The broad answer is what the scorer reads as context.
+      expect(result!.summary.startsWith("Broad answer.")).toBe(true);
+    });
+
+    it("never returns fewer sources than the broad search alone when favorites find nothing", async () => {
+      vi.mocked(fetch).mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body)) as { include_domains?: string[] };
+        if (body.include_domains) return tavilyResponse({ results: [] });
+        return tavilyResponse({
+          answer: "a",
+          results: [
+            { title: "A", url: "https://a.example/1", content: "a" },
+            { title: "B", url: "https://b.example/1", content: "b" },
+          ],
+        });
+      });
+
+      const result = await enrichRegionalContext(FACTS, undefined, {
+        favoriteDomains: ["irrelevant.example"],
+      });
+
+      expect(result!.sources).toHaveLength(2);
+    });
+
+    it("keeps the broad result even if the favorites-scoped call fails", async () => {
+      vi.mocked(fetch).mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body)) as { include_domains?: string[] };
+        if (body.include_domains) return { ok: false } as Response;
+        return tavilyResponse({
+          answer: "a",
+          results: [{ title: "A", url: "https://a.example/1", content: "a" }],
+        });
+      });
+
+      const result = await enrichRegionalContext(FACTS, undefined, {
+        favoriteDomains: ["down.example"],
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.sources).toHaveLength(1);
+    });
+
+    it("scopes the cache key to the user when preferences are set, global otherwise", async () => {
+      const { cacheGet } = await import("@/lib/cache");
+      vi.mocked(fetch).mockResolvedValue(
+        tavilyResponse({ answer: "a", results: [{ title: "t", url: "https://a.example/r", content: "c" }] }),
+      );
+
+      await enrichRegionalContext(FACTS, undefined, {});
+      await enrichRegionalContext(FACTS, undefined, { cacheScope: "user_abc" });
+
+      const keys = vi.mocked(cacheGet).mock.calls.map((c) => c[0]);
+      expect(keys[0]).toMatch(/^region-ctx-v3:global:/);
+      expect(keys[1]).toMatch(/^region-ctx-v3:user-abc:/);
+    });
+  });
+
   it("degrades to null when the lookup fails", async () => {
     vi.mocked(fetch).mockRejectedValue(new Error("network down"));
     await expect(enrichRegionalContext(FACTS)).resolves.toBeNull();

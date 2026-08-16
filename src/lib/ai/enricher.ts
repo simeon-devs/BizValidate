@@ -37,6 +37,12 @@ interface TavilyResponse {
 // Tavily caps exclude_domains at 150 entries; leave room for the built-in
 // exclusions and never send a request the API will reject outright.
 const MAX_BLOCKED_DOMAINS = 140;
+// Tavily caps include_domains at 300; well under it is plenty for a personal list.
+const MAX_FAVORITE_DOMAINS = 50;
+// Of MAX_SOURCES, how many slots favorites may claim ahead of the broad
+// search. Favorites surface first when relevant but can never crowd out
+// the system's own findings entirely.
+const FAVORITE_SLOTS = 2;
 
 export interface EnrichmentOptions {
   // Domains this user has said the AI must never cite. Enforced twice: sent
@@ -44,6 +50,15 @@ export interface EnrichmentOptions {
   // path — including cache hits — so a block takes effect on the very next
   // read regardless of what was cached before it was added.
   blockedDomains?: string[];
+  // Domains this user trusts. Searched in a second, separate call scoped to
+  // them and merged with the broad search — never a substitute for it.
+  // Tavily's include_domains is a strict whitelist, so passing favorites on
+  // the main query would silently cap what the system can find on its own.
+  favoriteDomains?: string[];
+  // Scopes the cache for users who have preferences, so their merged result
+  // is not served to (or from) users with different lists. Users without
+  // preferences share the global entry as before.
+  cacheScope?: string;
 }
 
 // Fetches live regional market context via Tavily, cached per
@@ -62,11 +77,15 @@ export async function enrichRegionalContext(
   if (!region || region === "not stated") return null;
 
   const blocked = options.blockedDomains ?? [];
+  const favorites = (options.favoriteDomains ?? []).slice(0, MAX_FAVORITE_DOMAINS);
   const query = buildQuery(facts.industry, region);
   // Versioned key: bumped whenever the stored shape or the retrieval rules
   // change, so entries fetched under the old rules are not served. Old keys
   // simply expire. v2 = JSON shape, v3 = social domains excluded.
-  const cacheKey = `region-ctx-v3:${normalize(region)}:${normalize(facts.industry)}`;
+  // The scope segment isolates users who have preferences; everyone else
+  // shares "global" and keeps today's hit rate untouched.
+  const scope = options.cacheScope ? normalize(options.cacheScope) : "global";
+  const cacheKey = `region-ctx-v3:${scope}:${normalize(region)}:${normalize(facts.industry)}`;
 
   const cached = await cacheGet(cacheKey);
   if (cached) {
@@ -77,28 +96,23 @@ export async function enrichRegionalContext(
   }
 
   try {
-    const res = await fetch(TAVILY_ENDPOINT, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.TAVILY_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query,
-        search_depth: "basic",
-        include_answer: true,
-        max_results: MAX_SOURCES,
-        exclude_domains: [
-          ...EXCLUDED_DOMAINS,
-          ...blocked.slice(0, MAX_BLOCKED_DOMAINS),
-        ],
-      }),
-    });
-    if (!res.ok) return null;
+    const excludeDomains = [
+      ...EXCLUDED_DOMAINS,
+      ...blocked.slice(0, MAX_BLOCKED_DOMAINS),
+    ];
 
-    const data = (await res.json()) as TavilyResponse;
-    const sources = toSources(data.results ?? []);
-    const summary = buildSummary(data.answer, sources);
+    // The broad search always runs; a favorites-scoped search runs alongside
+    // it only when the user has favorites. Neither waits on the other.
+    const [broad, favored] = await Promise.all([
+      searchTavily({ query, excludeDomains }),
+      favorites.length > 0
+        ? searchTavily({ query, excludeDomains, includeDomains: favorites })
+        : Promise.resolve(null),
+    ]);
+    if (!broad) return null;
+
+    const sources = mergeSources(broad.results ?? [], favored?.results ?? []);
+    const summary = buildSummary(broad.answer, sources);
     if (!summary) return null;
 
     const context: RegionalContext = {
@@ -114,6 +128,67 @@ export async function enrichRegionalContext(
   } catch {
     return null;
   }
+}
+
+interface TavilyQuery {
+  query: string;
+  excludeDomains: string[];
+  includeDomains?: string[];
+}
+
+async function searchTavily(input: TavilyQuery): Promise<TavilyResponse | null> {
+  const res = await fetch(TAVILY_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.TAVILY_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: input.query,
+      search_depth: "basic",
+      include_answer: true,
+      max_results: MAX_SOURCES,
+      exclude_domains: input.excludeDomains,
+      ...(input.includeDomains ? { include_domains: input.includeDomains } : {}),
+    }),
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as TavilyResponse;
+}
+
+// Favorites lead (up to FAVORITE_SLOTS), the broad search fills the rest,
+// deduped by URL. Ids are assigned in final order so [S1..N] in the prompt
+// always match what the reader sees. A favorite that finds nothing costs no
+// slot: the broad search's own results fill in, so the total can never fall
+// below what the broad query alone would have returned.
+function mergeSources(
+  broad: TavilyResult[],
+  favored: TavilyResult[],
+): EnrichmentSource[] {
+  const usable = (r: TavilyResult): r is TavilyResult & { url: string } =>
+    isHttpUrl(r.url);
+  const seen = new Set<string>();
+  const ordered: (TavilyResult & { url: string })[] = [];
+
+  for (const r of favored.filter(usable)) {
+    if (ordered.length >= FAVORITE_SLOTS) break;
+    if (seen.has(r.url)) continue;
+    seen.add(r.url);
+    ordered.push(r);
+  }
+  for (const r of broad.filter(usable)) {
+    if (ordered.length >= MAX_SOURCES) break;
+    if (seen.has(r.url)) continue;
+    seen.add(r.url);
+    ordered.push(r);
+  }
+
+  return ordered.map((r, index) => ({
+    id: index + 1,
+    title: r.title?.trim() || r.url,
+    url: r.url,
+    snippet: (r.content ?? "").trim().slice(0, MAX_SNIPPET_CHARS),
+  }));
 }
 
 // Drops any source whose hostname is, or is a subdomain of, a blocked domain,
@@ -156,20 +231,6 @@ function extractAnswer(summary: string): string | undefined {
 
 function buildQuery(industry: string, region: string): string {
   return `${industry} market size, competition and business climate in ${region}`;
-}
-
-// Only results with a usable URL become sources — an uncitable result would
-// undermine the point of collecting them.
-function toSources(results: TavilyResult[]): EnrichmentSource[] {
-  return results
-    .filter((r): r is TavilyResult & { url: string } => isHttpUrl(r.url))
-    .slice(0, MAX_SOURCES)
-    .map((r, index) => ({
-      id: index + 1,
-      title: r.title?.trim() || r.url,
-      url: r.url,
-      snippet: (r.content ?? "").trim().slice(0, MAX_SNIPPET_CHARS),
-    }));
 }
 
 function buildSummary(

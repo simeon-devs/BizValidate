@@ -114,7 +114,16 @@ export async function runValidationPipeline(
       enrichRegionalContext(
         extraction.facts,
         submission.targetRegion ?? undefined,
-        { blockedDomains: preferences.blocked },
+        {
+          blockedDomains: preferences.blocked,
+          favoriteDomains: preferences.favorites,
+          // Only users with preferences get an isolated cache; everyone else
+          // keeps sharing the global entry.
+          cacheScope:
+            preferences.blocked.length + preferences.favorites.length > 0
+              ? submission.userId
+              : undefined,
+        },
       ),
   );
   const regionContext = enrichment?.summary ?? null;
