@@ -4,10 +4,8 @@ import { Download, Share2 } from "lucide-react";
 import type { SampleReport } from "@/lib/fixtures";
 
 export function ReportActions({ report }: { report: SampleReport }) {
-  // Placeholder export until the styled jsPDF exporter lands (BLUEPRINT Phase 4).
-  function handleExport() {
-    window.print();
-  }
+  // Sample reports (v-00x fixtures) have no stored row to render from.
+  const isSample = report.id.startsWith("v-");
 
   function handleShare() {
     const subject = `Validation Report — ${report.business} (${report.grade}, ${report.overallScore}/100)`;
@@ -28,14 +26,17 @@ export function ReportActions({ report }: { report: SampleReport }) {
   return (
     // Interactive controls must not print into the static document.
     <div className="flex items-center gap-2 print-hide">
-      <button
-        type="button"
-        onClick={handleExport}
-        className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-card px-4 py-2 text-sm text-foreground transition-colors hover:bg-input"
-      >
-        <Download className="h-4 w-4" aria-hidden="true" />
-        Export PDF
-      </button>
+      {isSample ? null : (
+        <a
+          href={`/api/reports/${report.id}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-card px-4 py-2 text-sm text-foreground transition-colors hover:bg-input"
+        >
+          <Download className="h-4 w-4" aria-hidden="true" />
+          Export PDF
+        </a>
+      )}
       <button
         type="button"
         onClick={handleShare}
