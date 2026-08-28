@@ -5,6 +5,7 @@ import {
   sectionDotColor,
   formatDate,
   excerptTitle,
+  businessTitle,
   METRIC_LABELS,
   METRIC_ORDER,
 } from "./format";
@@ -58,6 +59,35 @@ describe("excerptTitle", () => {
     expect(title.length).toBe(49); // 48 + ellipsis
     expect(title.endsWith("…")).toBe(true);
     expect(excerptTitle("  Short   idea\n here ")).toBe("Short idea here");
+  });
+
+  it("uses a markdown heading as the title and drops its marker", () => {
+    expect(excerptTitle("# PalmLink Cameroun SARL\nWe buy fruit.")).toBe(
+      "PalmLink Cameroun SARL",
+    );
+  });
+});
+
+describe("businessTitle", () => {
+  it("splits a heading into title and subtitle on a dash", () => {
+    expect(
+      businessTitle("# PalmLink Cameroun SARL — Digitally coordinated milling\n\nBody."),
+    ).toEqual({
+      title: "PalmLink Cameroun SARL",
+      subtitle: "Digitally coordinated milling",
+    });
+  });
+
+  it("treats a short line followed by a blank line as a heading", () => {
+    expect(businessTitle("AdReach Kigali\n\nI am a developer.")).toEqual({
+      title: "AdReach Kigali",
+    });
+  });
+
+  it("leaves flowing prose intact — no split, no subtitle", () => {
+    expect(businessTitle("We sell solar - powered pumps\nto farms.")).toEqual({
+      title: "We sell solar - powered pumps to farms.",
+    });
   });
 });
 

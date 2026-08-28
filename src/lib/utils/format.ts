@@ -110,7 +110,41 @@ export function formatDateLong(iso: string): string {
 }
 
 // Submissions have no business-name field; use the opening of the text.
+// The first line is the best candidate (uploaded plans usually lead with a
+// heading), stripped of any markdown heading markers the OCR step leaves in.
 export function excerptTitle(rawText: string): string {
-  const clean = rawText.replace(/\s+/g, " ").trim();
+  const clean = businessTitle(rawText).title;
   return clean.length > 48 ? `${clean.slice(0, 48)}…` : clean;
+}
+
+// Splits a submission's opening line into a title and an optional subtitle
+// ("PalmLink Cameroun SARL — Digitally coordinated …"). Used where there is
+// room for the whole line, such as a document cover.
+export function businessTitle(rawText: string): {
+  title: string;
+  subtitle?: string;
+} {
+  const lines = rawText.split(/\r?\n/);
+  const firstIdx = lines.findIndex((l) => l.trim().length > 0);
+  const first = lines[firstIdx] ?? "";
+  const next = lines[firstIdx + 1];
+  // Only a real heading is taken on its own; plain prose keeps flowing so a
+  // pasted idea that happens to wrap is not chopped at its first line.
+  const isHeading =
+    /^\s*#+\s/.test(first) ||
+    (next !== undefined && next.trim() === "" && first.trim().length <= 90);
+
+  if (!isHeading) {
+    return { title: rawText.replace(/\s+/g, " ").trim() };
+  }
+
+  const line = first.replace(/^\s*#+\s*/, "").replace(/\s+/g, " ").trim();
+  const parts = line.split(/\s+[—–-]\s+/);
+  if (parts.length > 1 && parts[0].length >= 3) {
+    return {
+      title: parts[0].trim(),
+      subtitle: parts.slice(1).join(" — ").trim(),
+    };
+  }
+  return { title: line };
 }
