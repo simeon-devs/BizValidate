@@ -19,6 +19,7 @@ import type {
 import { identifyPreset } from "@/lib/scoring/presets";
 import { GRADE_THRESHOLDS, getGrade } from "@/lib/scoring/grade";
 import { anchorsForBand, nextAnchor, parseBand } from "@/lib/scoring/anchors";
+import { PRIMERS } from "@/lib/scoring/primers";
 import { evidenceCoverage } from "@/lib/scoring/coverage";
 import {
   EVIDENCE_LABELS,
@@ -118,7 +119,7 @@ const BASIS_INK = {
 // and titles, so they cannot drift apart. Numbered sections are numbered
 // at render time because "What Would Move the Score" only exists for
 // reports that carry rubric bands; appendices keep fixed letters.
-type SectionKey = "summary" | "metrics" | "findings" | "move" | "memo" | "a" | "b" | "c" | "d";
+type SectionKey = "summary" | "metrics" | "findings" | "move" | "memo" | "a" | "b" | "c" | "d" | "e";
 interface Section { key: SectionKey; n: string; title: string; blurb: string }
 
 const SECTION_DEFS: Omit<Section, "n">[] = [
@@ -130,7 +131,8 @@ const SECTION_DEFS: Omit<Section, "n">[] = [
   { key: "a", title: "Methodology", blurb: "The six pipeline steps, the models that ran them, and the arithmetic." },
   { key: "b", title: "Sources", blurb: "Every external source cited, with its URL." },
   { key: "c", title: "Provenance", blurb: "Report identity, prompt version, scoring model, cache status." },
-  { key: "d", title: "Glossary", blurb: "The terms used in this report, and the disclaimer." },
+  { key: "d", title: "Glossary", blurb: "The terms used in this report." },
+  { key: "e", title: "Reading the metrics", blurb: "What each of the eight metrics measures, why it matters, and the terms to look up." },
 ];
 
 function hasBands(data: ReportData): boolean {
@@ -347,6 +349,13 @@ const s = StyleSheet.create({
   metricHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 },
   metricName: { fontFamily: SERIF, fontSize: 13 },
   metricScore: { fontFamily: SERIF, fontSize: 20, lineHeight: 1 },
+  metricWhat: { fontSize: 8.5, lineHeight: 1.4, color: MUTED, marginBottom: 5 },
+  primer: { marginBottom: 12, paddingBottom: 10, borderBottomWidth: 0.6, borderBottomColor: RULE },
+  primerName: { fontFamily: SERIF, fontSize: 11.5, marginBottom: 3 },
+  primerLabel: { fontFamily: MONO, fontSize: 6.5, letterSpacing: 0.8, textTransform: "uppercase", color: SUBTLE, marginTop: 5, marginBottom: 2 },
+  term: { flexDirection: "row", marginBottom: 3 },
+  termName: { width: "26%", fontWeight: 700, fontSize: 8.5, lineHeight: 1.45 },
+  termDef: { flex: 1, fontSize: 8.5, lineHeight: 1.45, color: MUTED },
   metricMetaRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", fontSize: 7.5, color: MUTED, marginBottom: 6 },
   metricLabel: { fontFamily: MONO, fontSize: 7, color: SUBTLE, letterSpacing: 0.8, textTransform: "uppercase", marginTop: 4 },
   badge: {
@@ -734,6 +743,7 @@ function MetricAnalysis({ input }: { input: ReportPdfInput }) {
               <Text style={s.metricName}>{METRIC_LABELS[id]}</Text>
               <Text style={s.metricScore}>{m.score}</Text>
             </View>
+            <Text style={s.metricWhat}>{PRIMERS[id].what}</Text>
             <View style={s.metricMetaRow}>
               <EvidenceBadge basis={m.basis} />
               <Text>
@@ -870,6 +880,7 @@ function Appendix({ input }: { input: ReportPdfInput }) {
   const b = section(data, "b");
   const c = section(data, "c");
   const d = section(data, "d");
+  const e = section(data, "e");
 
   return (
     <Page size="A4" style={s.page} bookmark="Appendices">
@@ -956,6 +967,33 @@ function Appendix({ input }: { input: ReportPdfInput }) {
             <Text style={s.glossDef}>{def}</Text>
           </View>
         ))}
+      </View>
+
+      <View style={{ marginTop: 14 }}>
+        <SectionTitle n={e.n} title={e.title} />
+        <Text style={s.pMuted}>
+          The same eight metrics are scored on every report. This appendix is
+          identical each time: what each one measures, why an investor cares,
+          and the terms a reader may want to look up.
+        </Text>
+        {METRIC_ORDER.map((id) => {
+          const primer = PRIMERS[id];
+          return (
+            <View key={id} style={s.primer} wrap={false}>
+              <Text style={s.primerName}>{METRIC_LABELS[id]}</Text>
+              <Text style={s.body}>{primer.what}</Text>
+              <Text style={s.primerLabel}>Why it matters</Text>
+              <Text style={[s.body, { color: MUTED }]}>{primer.why}</Text>
+              <Text style={s.primerLabel}>Terms</Text>
+              {primer.terms.map((t) => (
+                <View key={t.term} style={s.term}>
+                  <Text style={s.termName}>{t.term}</Text>
+                  <Text style={s.termDef}>{t.definition}</Text>
+                </View>
+              ))}
+            </View>
+          );
+        })}
         <Text style={s.disclaimer}>{DISCLAIMER}</Text>
       </View>
     </Page>

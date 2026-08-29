@@ -55,6 +55,9 @@ describe("ScoringTrace", () => {
     expect(html).toContain("v1.1");
     expect(html).toContain("claude-sonnet-4-5");
     expect(html).toContain("Bill Payne Angel Standard");
+    // Primers: what each metric measures, and its terms, on every report.
+    expect(html).toContain("Reading the metrics");
+    expect(html).toContain("Payback period");
     // Source links must not hand the opener window over.
     expect(html).toContain('rel="noopener noreferrer"');
     expect(html).toContain("scored fresh");

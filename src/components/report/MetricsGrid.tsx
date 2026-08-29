@@ -5,6 +5,7 @@ import {
   METRIC_ORDER,
   EVIDENCE_LABELS,
 } from "@/lib/utils/format";
+import { PRIMERS } from "@/lib/scoring/primers";
 
 // Evidence class leads, because it is the honest signal: externally checked,
 // the founder's own claim, or inferred from the rubric. Confidence is shown
@@ -35,6 +36,9 @@ function MetricCard({
           {weight}%
         </span>
       </div>
+      <p className="mt-1 text-[11px] leading-snug text-subtle-foreground">
+        {PRIMERS[id].what}
+      </p>
 
       <p className="mt-3 font-mono text-3xl leading-none" style={{ color }}>
         {metric.score}

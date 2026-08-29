@@ -10,6 +10,7 @@ import {
   EVIDENCE_LABELS,
 } from "@/lib/utils/format";
 import { identifyPreset } from "@/lib/scoring/presets";
+import { PRIMERS } from "@/lib/scoring/primers";
 
 const STATUS_LABELS: Record<PipelineStep["status"], string> = {
   ran: "Ran",
@@ -228,6 +229,26 @@ export function ScoringTrace({
                 whether it is true.
               </dd>
             </div>
+          </dl>
+        </Section>
+
+        <Section title="Reading the metrics">
+          <p className="text-xs leading-relaxed text-muted-foreground text-pretty">
+            What each metric measures and the terms worth looking up. The same
+            on every report.
+          </p>
+          <dl className="mt-2 flex flex-col gap-3">
+            {METRIC_ORDER.map((id) => (
+              <div key={id} className="flex flex-col gap-1">
+                <dt className="text-xs text-foreground">
+                  <span className="font-medium">{METRIC_LABELS[id]}</span>
+                  <span className="text-muted-foreground"> — {PRIMERS[id].what}</span>
+                </dt>
+                <dd className="text-[11px] leading-snug text-subtle-foreground">
+                  {PRIMERS[id].terms.map((t) => t.term).join(" · ")}
+                </dd>
+              </div>
+            ))}
           </dl>
         </Section>
 

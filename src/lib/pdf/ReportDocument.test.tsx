@@ -121,6 +121,10 @@ describe("ReportDocument", () => {
     expect(flat).toContain("Appendix B · Sources");
     expect(flat).toContain("Appendix C · Provenance");
     expect(flat).toContain("Appendix D · Glossary");
+    expect(flat).toContain("Appendix E · Reading the metrics");
+    // A primer one-liner under a metric, and a primer term in the appendix
+    expect(flat).toContain("How the business finds and wins customers");
+    expect(flat).toContain("Customer acquisition cost");
     // Cover grid (keys are set in small caps) and headline
     expect(flat).toContain("PREPARED BY");
     expect(flat).toContain("Top Accelerator");
