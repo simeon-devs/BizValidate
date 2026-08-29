@@ -16,6 +16,16 @@ export type InvestmentTier =
   | "Pre-Seed Potential"
   | "Not Investment Ready";
 
+// Which question a source was retrieved to answer. One targeted search runs
+// per topic, so the scorer can be handed "here is what we found about your
+// competitors" rather than one undifferentiated pile.
+export type SourceTopic =
+  | "market"
+  | "competitive"
+  | "gotomarket"
+  | "financials"
+  | "scalability";
+
 // A single external result behind the regional context, kept with its URL so
 // the report can cite it. Referenced as [S1], [S2]… in prompts and in the UI.
 export interface EnrichmentSource {
@@ -23,6 +33,7 @@ export interface EnrichmentSource {
   title: string;
   url: string;
   snippet: string;
+  topic?: SourceTopic; // absent on reports enriched with the single generic query
 }
 
 // Structured output of the enrichment step. `summary` is the human-readable
@@ -30,7 +41,8 @@ export interface EnrichmentSource {
 export interface RegionalContext {
   summary: string;
   sources: EnrichmentSource[];
-  query: string; // the exact search issued — part of the audit trail
+  query: string; // the searches issued, joined — kept for older readers
+  queries?: string[]; // one per topic actually searched
   fetchedAt: string; // ISO timestamp
 }
 

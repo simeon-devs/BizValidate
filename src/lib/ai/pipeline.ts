@@ -1,4 +1,4 @@
-import type { MetricId, ReportData } from "@/types/report";
+import type { EnrichmentSource, MetricId, ReportData } from "@/types/report";
 import { getSubmissionById } from "@/lib/db/queries/submissions";
 import {
   createReport,
@@ -26,6 +26,24 @@ import {
 import { PipelineTrace } from "./trace";
 
 const MAX_VERIFY_RETRIES = 2;
+
+const TOPIC_LABELS: Record<NonNullable<EnrichmentSource["topic"]>, string> = {
+  market: "market",
+  competitive: "competitors",
+  gotomarket: "channels",
+  financials: "benchmarks",
+  scalability: "expansion",
+};
+
+// "market 3, competitors 2, channels 3" — what the research actually covered.
+function describeTopics(sources: EnrichmentSource[]): string {
+  const counts = new Map<string, number>();
+  for (const s of sources) {
+    const label = s.topic ? TOPIC_LABELS[s.topic] : "general";
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([label, n]) => `${label} ${n}`).join(", ");
+}
 
 // The fixed 6-step pipeline (BLUEPRINT §8). Not an agent: every step and
 // its order is code-controlled.
@@ -107,7 +125,7 @@ export async function runValidationPipeline(
     (result) => ({
       status: result ? "ran" : "skipped",
       detail: result
-        ? `Searched "${result.query}" and kept ${result.sources.length} citable source(s).${preferences.blocked.length > 0 ? ` ${preferences.blocked.length} blocked domain(s) excluded.` : ""} Cached 24h.`
+        ? `Ran ${result.queries?.length ?? 1} targeted search${(result.queries?.length ?? 1) === 1 ? "" : "es"} (${describeTopics(result.sources)}) and kept ${result.sources.length} citable source${result.sources.length === 1 ? "" : "s"}.${preferences.blocked.length > 0 ? ` ${preferences.blocked.length} blocked domain(s) excluded.` : ""} Each search is cached for 24h.`
         : "No live market data was retrieved, so scores rest on your submission alone. Metrics that would need external evidence are marked low confidence.",
     }),
     () =>
