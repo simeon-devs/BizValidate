@@ -69,6 +69,9 @@ describe("enrichRegionalContext", () => {
     ) as { exclude_domains: string[] };
     expect(body.exclude_domains).toContain("instagram.com");
     expect(body.exclude_domains).toContain("tiktok.com");
+    // User-upload hosts are not citations either.
+    expect(body.exclude_domains).toContain("linkedin.com");
+    expect(body.exclude_domains).toContain("scribd.com");
   });
 
   it("drops results that have no usable URL", async () => {
@@ -311,8 +314,57 @@ describe("enrichRegionalContext", () => {
       await enrichRegionalContext(FACTS, undefined, { cacheScope: "user_abc" });
 
       const keys = vi.mocked(cacheGet).mock.calls.map((c) => c[0]);
-      expect(keys[0]).toMatch(/^region-ctx-v3:global:/);
-      expect(keys[1]).toMatch(/^region-ctx-v3:user-abc:/);
+      expect(keys[0]).toMatch(/^region-ctx-v4:global:/);
+      expect(keys[1]).toMatch(/^region-ctx-v4:user-abc:/);
+    });
+  });
+
+  describe("query shaping", () => {
+    function firstBody(): Record<string, unknown> {
+      return JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)) as Record<string, unknown>;
+    }
+    const ok = () =>
+      vi.mocked(fetch).mockResolvedValue(
+        tavilyResponse({ answer: "a", results: [{ title: "t", url: "https://a.example/r", content: "c" }] }),
+      );
+
+    it("searches the most specific industry segment, not the whole label", async () => {
+      ok();
+      await enrichRegionalContext(
+        { ...FACTS, industry: "B2B Logistics · Last-mile Delivery" } as ExtractedFacts,
+        "Uganda",
+      );
+      expect(firstBody().query).toBe(
+        "Last-mile Delivery market size, competition and business climate in Uganda",
+      );
+    });
+
+    it("boosts results from the country when the region is a nation", async () => {
+      ok();
+      await enrichRegionalContext(FACTS, "Uganda");
+      const body = firstBody();
+      expect(body.country).toBe("uganda");
+      expect(body.topic).toBe("general");
+      expect(body.search_depth).toBe("advanced");
+    });
+
+    it("sends no country boost for a region that is not one nation", async () => {
+      ok();
+      await enrichRegionalContext(FACTS, "West Africa");
+      expect(firstBody()).not.toHaveProperty("country");
+    });
+
+    it("keeps the favorites-scoped call at basic depth", async () => {
+      ok();
+      await enrichRegionalContext(FACTS, "Kenya", { favoriteDomains: ["trusted.example"] });
+      const bodies = vi.mocked(fetch).mock.calls.map(
+        (c) => JSON.parse(String(c[1]?.body)) as Record<string, unknown>,
+      );
+      const scoped = bodies.find((b) => "include_domains" in b);
+      const broad = bodies.find((b) => !("include_domains" in b));
+      expect(broad?.search_depth).toBe("advanced");
+      expect(scoped?.search_depth).toBe("basic");
+      expect(scoped?.country).toBe("kenya");
     });
   });
 

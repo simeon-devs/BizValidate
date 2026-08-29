@@ -2,15 +2,17 @@ import { env } from "@/lib/env";
 import { cacheGet, cacheSet } from "@/lib/cache";
 import type { EnrichmentSource, RegionalContext } from "@/types/report";
 import type { ExtractedFacts } from "./types";
+import { countryForRegion } from "./countries";
 
 const TAVILY_ENDPOINT = "https://api.tavily.com/search";
 const CACHE_TTL_SECONDS = 24 * 60 * 60; // 24h per region (BLUEPRINT §8 step 3)
 const MAX_SOURCES = 5;
 
 // A market-research citation should be able to survive an investor clicking
-// it. Social and video platforms answer a different kind of question and
-// undercut the report's credibility even when the scorer declines to cite
-// them, because the source list is shown to the reader either way.
+// it. Social platforms and user-upload hosts answer a different kind of
+// question and undercut the report's credibility even when the scorer
+// declines to cite them, because the source list is shown to the reader
+// either way.
 const EXCLUDED_DOMAINS = [
   "instagram.com",
   "facebook.com",
@@ -19,6 +21,8 @@ const EXCLUDED_DOMAINS = [
   "twitter.com",
   "pinterest.com",
   "youtube.com",
+  "linkedin.com",
+  "scribd.com",
 ];
 const MAX_SUMMARY_CHARS = 4000;
 const MAX_SNIPPET_CHARS = 600;
@@ -79,13 +83,15 @@ export async function enrichRegionalContext(
   const blocked = options.blockedDomains ?? [];
   const favorites = (options.favoriteDomains ?? []).slice(0, MAX_FAVORITE_DOMAINS);
   const query = buildQuery(facts.industry, region);
+  const country = countryForRegion(region);
   // Versioned key: bumped whenever the stored shape or the retrieval rules
   // change, so entries fetched under the old rules are not served. Old keys
-  // simply expire. v2 = JSON shape, v3 = social domains excluded.
+  // simply expire. v2 = JSON shape, v3 = social domains excluded,
+  // v4 = specific-industry query with country boost and advanced depth.
   // The scope segment isolates users who have preferences; everyone else
   // shares "global" and keeps today's hit rate untouched.
   const scope = options.cacheScope ? normalize(options.cacheScope) : "global";
-  const cacheKey = `region-ctx-v3:${scope}:${normalize(region)}:${normalize(facts.industry)}`;
+  const cacheKey = `region-ctx-v4:${scope}:${normalize(region)}:${normalize(facts.industry)}`;
 
   const cached = await cacheGet(cacheKey);
   if (cached) {
@@ -102,11 +108,13 @@ export async function enrichRegionalContext(
     ];
 
     // The broad search always runs; a favorites-scoped search runs alongside
-    // it only when the user has favorites. Neither waits on the other.
+    // it only when the user has favorites. Neither waits on the other. The
+    // broad search pays for advanced depth (2 credits) because it decides
+    // what the report cites; the favorites call is already narrowed.
     const [broad, favored] = await Promise.all([
-      searchTavily({ query, excludeDomains }),
+      searchTavily({ query, excludeDomains, country, depth: "advanced" }),
       favorites.length > 0
-        ? searchTavily({ query, excludeDomains, includeDomains: favorites })
+        ? searchTavily({ query, excludeDomains, includeDomains: favorites, country })
         : Promise.resolve(null),
     ]);
     if (!broad) return null;
@@ -134,6 +142,10 @@ interface TavilyQuery {
   query: string;
   excludeDomains: string[];
   includeDomains?: string[];
+  // Tavily boosts (does not restrict) results from this nation. Only sent
+  // when the region resolved to one; a wrong boost is worse than none.
+  country?: string | null;
+  depth?: "basic" | "advanced";
 }
 
 async function searchTavily(input: TavilyQuery): Promise<TavilyResponse | null> {
@@ -145,11 +157,13 @@ async function searchTavily(input: TavilyQuery): Promise<TavilyResponse | null> 
     },
     body: JSON.stringify({
       query: input.query,
-      search_depth: "basic",
+      search_depth: input.depth ?? "basic",
+      topic: "general", // required for `country` to apply
       include_answer: true,
       max_results: MAX_SOURCES,
       exclude_domains: input.excludeDomains,
       ...(input.includeDomains ? { include_domains: input.includeDomains } : {}),
+      ...(input.country ? { country: input.country } : {}),
     }),
   });
   if (!res.ok) return null;
@@ -229,8 +243,16 @@ function extractAnswer(summary: string): string | undefined {
   return answer || undefined;
 }
 
+// The extractor labels industry as "Broad · Specific" ("B2B Logistics ·
+// Last-mile Delivery"). The specific segment finds sector reports; searching
+// the whole label mostly finds noise about the broad one.
 function buildQuery(industry: string, region: string): string {
-  return `${industry} market size, competition and business climate in ${region}`;
+  const segments = industry
+    .split(/\s*[·|/]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const specific = segments[segments.length - 1] ?? industry.trim();
+  return `${specific} market size, competition and business climate in ${region}`;
 }
 
 function buildSummary(
