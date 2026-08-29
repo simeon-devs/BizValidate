@@ -135,10 +135,18 @@ describe("enrichRegionalContext", () => {
 
     expect(new Set(urls).size).toBe(urls.length);
     expect(urls.filter((u) => u === "https://shared.example/one")).toHaveLength(1);
+    // Round-robin: every topic is represented even though five topics × three
+    // would exceed the total cap; no topic is starved by the ones before it.
     for (const topic of ["market", "competitive", "gotomarket", "financials", "scalability"]) {
-      expect(result!.sources.filter((s) => s.topic === topic).length).toBeLessThanOrEqual(3);
+      const n = result!.sources.filter((s) => s.topic === topic).length;
+      expect(n, topic).toBeGreaterThanOrEqual(2);
+      expect(n, topic).toBeLessThanOrEqual(3);
     }
-    expect(result!.sources.length).toBeLessThanOrEqual(12);
+    expect(result!.sources.length).toBe(12);
+    // First pass takes one from each topic in order before any second pass.
+    expect(result!.sources.slice(0, 5).map((s) => s.topic)).toEqual([
+      "market", "competitive", "gotomarket", "financials", "scalability",
+    ]);
     expect(result!.sources.map((s) => s.id)).toEqual(result!.sources.map((_, i) => i + 1));
   });
 

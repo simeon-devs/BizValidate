@@ -270,10 +270,12 @@ async function searchTavily(input: TavilyQuery): Promise<TavilyResponse | null> 
   return (await res.json()) as TavilyResponse;
 }
 
-// Favorites lead (up to FAVORITE_SLOTS), then each topic in order up to its
-// cap, deduped by URL, until MAX_SOURCES. Ids are assigned in final order so
-// [S1..N] in the prompt always match what the reader sees. A favorite that
-// finds nothing costs no slot.
+// Favorites lead (up to FAVORITE_SLOTS), then topics are filled round-robin
+// — one source per topic per pass, up to the per-topic cap — until
+// MAX_SOURCES. Round-robin rather than topic-by-topic so a later topic can
+// never be starved by earlier ones filling every slot. Deduped by URL; ids
+// are assigned in final order so [S1..N] in the prompt always match what the
+// reader sees. A favorite that finds nothing costs no slot.
 function assembleSources(
   topics: (TopicResult | null)[],
   favored: TavilyResult[],
@@ -292,13 +294,24 @@ function assembleSources(
     if (favoriteSlots === 0) break;
     if (take(s)) favoriteSlots -= 1;
   }
-  for (const topic of TOPIC_ORDER) {
-    const result = topics.find((t) => t?.topic === topic);
-    if (!result) continue;
-    let taken = 0;
-    for (const s of result.sources) {
-      if (taken >= PER_TOPIC_CAP) break;
-      if (take(s)) taken += 1;
+
+  const queues = TOPIC_ORDER.map((topic) => ({
+    topic,
+    pending: [...(topics.find((t) => t?.topic === topic)?.sources ?? [])],
+    taken: 0,
+  }));
+  let progressed = true;
+  while (progressed && ordered.length < MAX_SOURCES) {
+    progressed = false;
+    for (const q of queues) {
+      if (q.taken >= PER_TOPIC_CAP) continue;
+      let next = q.pending.shift();
+      while (next && !take(next)) next = q.pending.shift(); // skip dupes
+      if (next) {
+        q.taken += 1;
+        progressed = true;
+      }
+      if (ordered.length >= MAX_SOURCES) break;
     }
   }
   return ordered.map((s, index) => ({ ...s, id: index + 1 }));
