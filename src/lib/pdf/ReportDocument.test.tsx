@@ -112,7 +112,11 @@ describe("ReportDocument", () => {
     expect(flat).toContain("1 · Executive Summary");
     expect(flat).toContain("2 · Metric Analysis");
     expect(flat).toContain("3 · Findings");
-    expect(flat).toContain("4 · Investor Memo");
+    expect(flat).toContain("4 · What Would Move the Score");
+    expect(flat).toContain("5 · Investor Memo");
+    // Rubric anchors quoted verbatim for the 60-80 band, and the next one up
+    expect(flat).toContain("Balanced team with domain experience");
+    expect(flat).toContain("To reach the 80 band");
     expect(flat).toContain("Appendix A · Methodology");
     expect(flat).toContain("Appendix B · Sources");
     expect(flat).toContain("Appendix C · Provenance");
@@ -144,10 +148,14 @@ describe("ReportDocument", () => {
 
     if (!hasPdftotext()) return;
     const flat = extractText(pdf).replace(/\s+/g, " ");
-    expect(flat).toContain("before step-by-step tracing was introduced");
+    expect(flat).toContain("before step-by-step tracing and rubric bands were introduced");
     expect(flat).toContain("No external sources were retrieved");
     expect(flat).toContain("evidence labels predate this report");
     expect(flat).toContain("v1.0");
+    // No bands → no anchor section, and the memo takes its number.
+    expect(flat).not.toContain("What Would Move the Score");
+    expect(flat).toContain("4 · Investor Memo");
+    expect(flat).toContain("no anchor comparison is shown");
     expectDisclaimerLast(flat);
     expect(flat).not.toContain("undefined");
   });

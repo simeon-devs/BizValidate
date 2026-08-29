@@ -18,6 +18,7 @@ import type {
 } from "@/types/report";
 import { identifyPreset } from "@/lib/scoring/presets";
 import { GRADE_THRESHOLDS, getGrade } from "@/lib/scoring/grade";
+import { anchorsForBand, nextAnchor, parseBand } from "@/lib/scoring/anchors";
 import { evidenceCoverage } from "@/lib/scoring/coverage";
 import {
   EVIDENCE_LABELS,
@@ -114,17 +115,41 @@ const BASIS_INK = {
 } as const;
 
 // Section registry: one place for numbering, the contents page, bookmarks
-// and titles, so they cannot drift apart.
-const SECTIONS = [
-  { n: "1", title: "Executive Summary", blurb: "Verdict, stage alignment, evidence coverage and the scorecard." },
-  { n: "2", title: "Metric Analysis", blurb: "Each of the eight scores, what it rests on, its strength and its gap." },
-  { n: "3", title: "Findings", blurb: "Strengths, weaknesses, risks, recommendations and quick wins." },
-  { n: "4", title: "Investor Memo", blurb: "A short first-person read of the investment case." },
-  { n: "A", title: "Methodology", blurb: "The six pipeline steps, the models that ran them, and the arithmetic." },
-  { n: "B", title: "Sources", blurb: "Every external source cited, with its URL." },
-  { n: "C", title: "Provenance", blurb: "Report identity, prompt version, scoring model, cache status." },
-  { n: "D", title: "Glossary", blurb: "The terms used in this report, and the disclaimer." },
-] as const;
+// and titles, so they cannot drift apart. Numbered sections are numbered
+// at render time because "What Would Move the Score" only exists for
+// reports that carry rubric bands; appendices keep fixed letters.
+type SectionKey = "summary" | "metrics" | "findings" | "move" | "memo" | "a" | "b" | "c" | "d";
+interface Section { key: SectionKey; n: string; title: string; blurb: string }
+
+const SECTION_DEFS: Omit<Section, "n">[] = [
+  { key: "summary", title: "Executive Summary", blurb: "Verdict, stage alignment, evidence coverage and the scorecard." },
+  { key: "metrics", title: "Metric Analysis", blurb: "Each score, the rubric anchors it was judged between, its strength and its gap." },
+  { key: "findings", title: "Findings", blurb: "Strengths, weaknesses, risks, recommendations and quick wins." },
+  { key: "move", title: "What Would Move the Score", blurb: "For each metric, the rubric anchor it would need to satisfy to leave its band." },
+  { key: "memo", title: "Investor Memo", blurb: "A short first-person read of the investment case." },
+  { key: "a", title: "Methodology", blurb: "The six pipeline steps, the models that ran them, and the arithmetic." },
+  { key: "b", title: "Sources", blurb: "Every external source cited, with its URL." },
+  { key: "c", title: "Provenance", blurb: "Report identity, prompt version, scoring model, cache status." },
+  { key: "d", title: "Glossary", blurb: "The terms used in this report, and the disclaimer." },
+];
+
+function hasBands(data: ReportData): boolean {
+  return METRIC_ORDER.some((id) => parseBand(data.metrics[id]?.anchorBand) !== null);
+}
+
+function sectionsFor(data: ReportData): Section[] {
+  let n = 0;
+  return SECTION_DEFS.filter((d) => d.key !== "move" || hasBands(data)).map((d) => ({
+    ...d,
+    n: d.key.length === 1 ? d.key.toUpperCase() : String(++n),
+  }));
+}
+
+function section(data: ReportData, key: SectionKey): Section {
+  const found = sectionsFor(data).find((sec) => sec.key === key);
+  if (!found) throw new Error(`section ${key} not present for this report`);
+  return found;
+}
 
 function sectionLabel(n: string, title: string): string {
   return /^[A-Z]$/.test(n) ? `Appendix ${n} · ${title}` : `${n} · ${title}`;
@@ -335,6 +360,17 @@ const s = StyleSheet.create({
     borderWidth: 0.8,
     marginRight: 6,
   },
+
+  // Rubric anchors and "what would move the score"
+  anchors: { marginTop: 4, paddingTop: 6, borderTopWidth: 0.6, borderTopColor: TRACK },
+  anchorRow: { flexDirection: "row", marginTop: 3 },
+  anchorLevel: { width: 26, fontFamily: MONO, fontSize: 8, color: ACCENT_INK, paddingTop: 1 },
+  anchorText: { flex: 1, fontSize: 8.5, lineHeight: 1.45, color: MUTED },
+  moveRow: { paddingVertical: 7, borderBottomWidth: 0.6, borderBottomColor: RULE },
+  moveHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 3 },
+  moveName: { fontWeight: 700, fontSize: 10 },
+  moveScore: { fontFamily: MONO, fontSize: 8, color: MUTED },
+  moveTarget: { fontFamily: MONO, fontSize: 8.5, color: ACCENT_INK },
 
   // Lists
   li: { flexDirection: "row", marginBottom: 4 },
@@ -575,8 +611,8 @@ function Contents({ input }: { input: ReportPdfInput }) {
         <Text style={s.h1}>Contents</Text>
         <View style={s.h1Rule} />
       </View>
-      {SECTIONS.map((sec) => (
-        <View key={sec.n} style={s.tocRow}>
+      {sectionsFor(input.data).map((sec) => (
+        <View key={sec.key} style={s.tocRow}>
           <Text style={s.tocNum}>{/^[A-Z]$/.test(sec.n) ? `App. ${sec.n}` : sec.n}</Text>
           <View style={{ flex: 1 }}>
             <Text style={s.tocTitle}>{sec.title}</Text>
@@ -596,7 +632,7 @@ function ExecutiveSummary({ input }: { input: ReportPdfInput }) {
   const { data, weights } = input;
   const coverage = evidenceCoverage(data.metrics);
   const labelled = coverage.total - coverage.unlabelled;
-  const sec = SECTIONS[0];
+  const sec = section(data, "summary");
   return (
     <Page size="A4" style={s.page} bookmark={sectionLabel(sec.n, sec.title)}>
       <Chrome business={input.business} id={input.id} />
@@ -684,13 +720,14 @@ function ExecutiveSummary({ input }: { input: ReportPdfInput }) {
 
 function MetricAnalysis({ input }: { input: ReportPdfInput }) {
   const { data, weights } = input;
-  const sec = SECTIONS[1];
+  const sec = section(data, "metrics");
   return (
     <Page size="A4" style={s.page} bookmark={sectionLabel(sec.n, sec.title)}>
       <Chrome business={input.business} id={input.id} />
       <SectionTitle n={sec.n} title={sec.title} />
       {METRIC_ORDER.map((id) => {
         const m = data.metrics[id];
+        const anchors = anchorsForBand(id, m.anchorBand);
         return (
           <View key={id} style={s.metric} wrap={false}>
             <View style={s.metricHead}>
@@ -714,6 +751,19 @@ function MetricAnalysis({ input }: { input: ReportPdfInput }) {
             <Text style={s.p}>{m.strength}</Text>
             <Text style={s.metricLabel}>Gap</Text>
             <Text style={s.p}>{m.gap}</Text>
+            {anchors ? (
+              <View style={s.anchors}>
+                <Text style={s.metricLabel}>Judged between these rubric anchors</Text>
+                {[anchors.lower, anchors.upper].map((anchor) =>
+                  anchor ? (
+                    <View key={anchor.level} style={s.anchorRow}>
+                      <Text style={s.anchorLevel}>{anchor.level}</Text>
+                      <Text style={s.anchorText}>{anchor.text}</Text>
+                    </View>
+                  ) : null,
+                )}
+              </View>
+            ) : null}
           </View>
         );
       })}
@@ -721,12 +771,56 @@ function MetricAnalysis({ input }: { input: ReportPdfInput }) {
   );
 }
 
+// The next anchor up, per metric — grounded entirely in the rubric. A
+// verdict becomes a roadmap without inventing a single recommendation.
+function WhatWouldMove({ input }: { input: ReportPdfInput }) {
+  const { data } = input;
+  const sec = section(data, "move");
+  return (
+    <View style={{ marginTop: 18 }}>
+      <SectionTitle n={sec.n} title={sec.title} />
+      <Text style={s.pMuted}>
+        Each metric is scored between two rubric anchors. The anchor above its
+        current band describes what the business would need to demonstrate to
+        move up. Nothing here is generated; it is the rubric itself.
+      </Text>
+      {METRIC_ORDER.map((id) => {
+        const m = data.metrics[id];
+        const next = nextAnchor(id, m.anchorBand);
+        return (
+          <View key={id} style={s.moveRow} wrap={false}>
+            <View style={s.moveHead}>
+              <Text style={s.moveName}>{METRIC_LABELS[id]}</Text>
+              <Text style={s.moveScore}>
+                {m.score}
+                {m.anchorBand ? ` · band ${m.anchorBand}` : ""}
+              </Text>
+            </View>
+            {next ? (
+              <Text style={s.body}>
+                <Text style={s.moveTarget}>To reach the {next.level} band: </Text>
+                {next.text}
+              </Text>
+            ) : (
+              <Text style={s.pMuted}>
+                {m.anchorBand
+                  ? "Already at the top of the rubric for this metric."
+                  : "No rubric band was recorded for this metric."}
+              </Text>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // Findings and the memo flow on one page run; the memo is kept whole so it
 // never strands its heading at a page foot.
 function FindingsAndMemo({ input }: { input: ReportPdfInput }) {
   const { data } = input;
-  const findings = SECTIONS[2];
-  const memo = SECTIONS[3];
+  const findings = section(data, "findings");
+  const memo = section(data, "memo");
   return (
     <Page size="A4" style={s.page} bookmark={sectionLabel(findings.n, findings.title)}>
       <Chrome business={input.business} id={input.id} />
@@ -741,6 +835,8 @@ function FindingsAndMemo({ input }: { input: ReportPdfInput }) {
       <NumberedList items={data.recommendations} />
       <Text style={s.h2}>Quick wins</Text>
       <NumberedList items={data.quickWins} />
+
+      {hasBands(data) ? <WhatWouldMove input={input} /> : null}
 
       <View wrap={false} style={{ marginTop: 18 }}>
         <SectionTitle n={memo.n} title={memo.title} />
@@ -770,7 +866,10 @@ function Appendix({ input }: { input: ReportPdfInput }) {
   const trace = data.trace ?? [];
   const sources: EnrichmentSource[] = data.sources ?? [];
   const preset = identifyPreset(weights);
-  const [a, b, c, d] = SECTIONS.slice(4);
+  const a = section(data, "a");
+  const b = section(data, "b");
+  const c = section(data, "c");
+  const d = section(data, "d");
 
   return (
     <Page size="A4" style={s.page} bookmark="Appendices">
@@ -783,9 +882,10 @@ function Appendix({ input }: { input: ReportPdfInput }) {
       </Text>
       {trace.length === 0 ? (
         <Text style={s.p}>
-          This report was scored before step-by-step tracing was introduced,
-          so its pipeline record was not captured. Its score is unchanged and
-          remains attributable to the prompt version in Appendix C.
+          This report was scored before step-by-step tracing and rubric bands
+          were introduced, so its pipeline record was not captured and no
+          anchor comparison is shown. Its score is unchanged and remains
+          attributable to the prompt version in Appendix C.
         </Text>
       ) : (
         trace.map((step) => (
