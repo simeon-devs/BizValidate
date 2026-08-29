@@ -365,7 +365,8 @@ function Chrome({ business, id }: { business: string; id: string }) {
         BIZVALIDATE · VALIDATION REPORT
       </Text>
       <Text style={[s.running, s.runningHeaderRight]} fixed>
-        {business.toUpperCase()}
+        {/* Hard cap regardless of source: a running header is one line. */}
+        {(business.length > 44 ? `${business.slice(0, 43).trim()}…` : business).toUpperCase()}
       </Text>
       <Text style={[s.running, s.runningFooterLeft]} fixed>
         REPORT {shortId(id)} · CONFIDENTIAL

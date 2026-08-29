@@ -109,6 +109,13 @@ export function formatDateLong(iso: string): string {
   });
 }
 
+function capAtWord(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const atWord = cut.lastIndexOf(" ");
+  return `${(atWord > max / 2 ? cut.slice(0, atWord) : cut).trim()}…`;
+}
+
 // Submissions have no business-name field; use the opening of the text.
 // The first line is the best candidate (uploaded plans usually lead with a
 // heading), stripped of any markdown heading markers the OCR step leaves in.
@@ -135,7 +142,11 @@ export function businessTitle(rawText: string): {
     (next !== undefined && next.trim() === "" && first.trim().length <= 90);
 
   if (!isHeading) {
-    return { title: rawText.replace(/\s+/g, " ").trim() };
+    // Plain prose has no name to lift out, so the title is the opening
+    // clause, capped at a word boundary — never the whole submission.
+    const prose = rawText.replace(/\s+/g, " ").trim();
+    const firstSentence = prose.split(/(?<=[.!?])\s/)[0] ?? prose;
+    return { title: capAtWord(firstSentence, 64) };
   }
 
   const line = first.replace(/^\s*#+\s*/, "").replace(/\s+/g, " ").trim();

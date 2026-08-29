@@ -84,10 +84,20 @@ describe("businessTitle", () => {
     });
   });
 
-  it("leaves flowing prose intact — no split, no subtitle", () => {
+  it("leaves short flowing prose intact — no split, no subtitle", () => {
     expect(businessTitle("We sell solar - powered pumps\nto farms.")).toEqual({
       title: "We sell solar - powered pumps to farms.",
     });
+  });
+
+  it("caps a long pitch with no heading at its opening clause", () => {
+    const pitch =
+      "Tulip Logistics runs a same-day parcel delivery network for online sellers in Kampala, Uganda. Riders are contracted, dispatch is coordinated by an in-house app.";
+    const { title, subtitle } = businessTitle(pitch);
+    expect(title.length).toBeLessThanOrEqual(65);
+    expect(title.startsWith("Tulip Logistics runs a same-day")).toBe(true);
+    expect(title.endsWith("…")).toBe(true);
+    expect(subtitle).toBeUndefined();
   });
 });
 
