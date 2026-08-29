@@ -57,7 +57,9 @@ async function getReport(
 
   return {
     id: submission.id,
-    business: excerptTitle(submission.rawText),
+    business:
+      (report.reportData as ReportData).businessName ??
+      excerptTitle(submission.rawText),
     type: `${INPUT_TYPE_LABELS[submission.inputType] ?? submission.inputType} · ${STAGE_LABELS[submission.stage] ?? submission.stage}`,
     region: report.regionContext ? "See report" : "—",
     date: (report.createdAt ?? new Date()).toISOString(),

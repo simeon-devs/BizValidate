@@ -159,3 +159,18 @@ export function businessTitle(rawText: string): {
   }
   return { title: line };
 }
+
+// The name to put on a report. Prefers the name the extractor identified
+// (stored on newer reports); older reports fall back to the submission's
+// opening line. A stored name that is implausibly long is treated as a
+// description, not a name.
+export function reportTitle(
+  rawText: string,
+  businessName?: string | null,
+): { title: string; subtitle?: string } {
+  const name = businessName?.trim();
+  if (name && name.length >= 2 && name.length <= 80) {
+    return { title: name, subtitle: businessTitle(rawText).subtitle };
+  }
+  return businessTitle(rawText);
+}

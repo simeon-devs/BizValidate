@@ -6,7 +6,7 @@ import { getReportBySubmissionId } from "@/lib/db/queries/reports";
 import { renderReportPdf } from "@/lib/pdf/ReportDocument";
 import type { Grade, MetricId, ReportData } from "@/types/report";
 import {
-  businessTitle,
+  reportTitle,
   INPUT_TYPE_LABELS,
   STAGE_LABELS,
 } from "@/lib/utils/format";
@@ -59,7 +59,8 @@ export async function GET(
     [user?.firstName, user?.lastName].filter(Boolean).join(" ") ??
     "the account holder";
 
-  const { title, subtitle } = businessTitle(submission.rawText);
+  const data = report.reportData as ReportData;
+  const { title, subtitle } = reportTitle(submission.rawText, data.businessName);
   const pdf = await renderReportPdf({
     id: submission.id,
     business: title,

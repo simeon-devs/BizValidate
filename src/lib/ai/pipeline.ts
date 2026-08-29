@@ -196,6 +196,7 @@ export async function runValidationPipeline(
 
   const reportData: ReportData = {
     metrics,
+    businessName: extraction.facts.businessName,
     sources: enrichment?.sources ?? [],
     trace: trace.toArray(),
     verdict: scored.narrative.verdict,

@@ -64,6 +64,10 @@ export interface MetricScore {
 
 export interface ReportData {
   metrics: Record<MetricId, MetricScore>;
+  // The business name the extractor identified. Submissions carry no name
+  // field of their own; older reports predate this and fall back to the
+  // opening of the submission text.
+  businessName?: string;
   // v1.1: the regional sources behind any cited claim. Absent on v1.0
   // reports and on reports scored without live enrichment.
   sources?: EnrichmentSource[];

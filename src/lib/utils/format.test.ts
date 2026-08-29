@@ -6,6 +6,7 @@ import {
   formatDate,
   excerptTitle,
   businessTitle,
+  reportTitle,
   METRIC_LABELS,
   METRIC_ORDER,
 } from "./format";
@@ -88,6 +89,20 @@ describe("businessTitle", () => {
     expect(businessTitle("We sell solar - powered pumps\nto farms.")).toEqual({
       title: "We sell solar - powered pumps to farms.",
     });
+  });
+
+  it("reportTitle prefers a stored business name and keeps the heading's subtitle", () => {
+    const raw = "# PalmLink Cameroun SARL — Digitally coordinated milling\n\nBody.";
+    expect(reportTitle(raw, "PalmLink Cameroun")).toEqual({
+      title: "PalmLink Cameroun",
+      subtitle: "Digitally coordinated milling",
+    });
+    // No stored name (legacy report) → derived from the text.
+    expect(reportTitle(raw).title).toBe("PalmLink Cameroun SARL");
+    // A stored "name" that is really a description is not used as a title.
+    expect(reportTitle("Tulip runs couriers.", "x".repeat(120)).title).toBe(
+      "Tulip runs couriers.",
+    );
   });
 
   it("caps a long pitch with no heading at its opening clause", () => {
