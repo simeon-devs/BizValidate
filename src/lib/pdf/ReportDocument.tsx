@@ -756,7 +756,24 @@ function MetricAnalysis({ input }: { input: ReportPdfInput }) {
                   : ""}
               </Text>
             </View>
-            <Text style={s.p}>{m.note}</Text>
+            <Text style={s.p}>{m.assessment ?? m.note ?? ""}</Text>
+            {m.evidence && m.evidence.length > 0 ? (
+              <View style={{ marginBottom: 4 }}>
+                <Text style={s.metricLabel}>Evidence relied on</Text>
+                {m.evidence.map((item, i) => (
+                  <View key={i} style={s.li} wrap={false}>
+                    <Text style={s.liNum}>{String(i + 1).padStart(2, "0")}</Text>
+                    <Text style={s.liText}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {m.missing ? (
+              <>
+                <Text style={s.metricLabel}>What was missing</Text>
+                <Text style={s.p}>{m.missing}</Text>
+              </>
+            ) : null}
             <Text style={s.metricLabel}>Strength</Text>
             <Text style={s.p}>{m.strength}</Text>
             <Text style={s.metricLabel}>Gap</Text>

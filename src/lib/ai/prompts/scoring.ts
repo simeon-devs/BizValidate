@@ -1,11 +1,11 @@
-import type { EnrichmentSource, MetricId } from "@/types/report";
+import type { EnrichmentSource, MetricId, SourceTopic } from "@/types/report";
 import type { ExtractedFacts } from "../types";
 import { METRIC_LABELS } from "@/lib/utils/format";
 
 // Any change to this prompt (including the anchors) must bump PROMPT_VERSION.
 // Old reports keep the version they were scored with — scores never
 // retroactively change (CLAUDE.md score-consistency rules).
-export const PROMPT_VERSION = "v1.1";
+export const PROMPT_VERSION = "v1.2";
 
 // Behavioral anchors (BLUEPRINT §9) — the LLM calibrates against explicit
 // descriptions at 20/40/60/80/100 instead of open-range guessing.
@@ -82,6 +82,11 @@ Every score must be auditable. For each metric also report:
 - confidence: "high" only when the claim is backed by regional sources or specific figures in the submission; "medium" when the submission is clear but unverified; "low" when evidence is thin or absent.
 - sourceRefs: the ids of regional sources you actually used, e.g. [1, 3]. Use [] when none. Never cite an id that was not provided to you.
 
+Every score must also be explained, to a reader who may not know the domain:
+- assessment: 5-7 sentences in plain language, no jargon without a gloss, no bullet points: what the submission showed for this metric, how that compares to the anchors, and why the score landed where it did.
+- evidence: 2-5 short items, each one specific fact you relied on. Every item must be traceable to the submission text or to a numbered regional source; prefix an item taken from a source with its id, e.g. "[S3] …". Do not generalise, do not restate the score, do not list things that are absent.
+- missing: one or two sentences naming concretely what would have been needed to score higher.
+
 Stating that evidence is missing is required, not optional. A low-confidence score with an honest gap is correct; inventing support for a claim is a failure.`;
 
 export interface ScoringPromptInput {
@@ -92,6 +97,31 @@ export interface ScoringPromptInput {
   sources: EnrichmentSource[];
   metricIds: MetricId[];
   includeNarrative: boolean;
+}
+
+const TOPIC_HEADINGS: Record<SourceTopic, string> = {
+  market: "Market",
+  competitive: "Competitors",
+  gotomarket: "Go-to-market",
+  financials: "Benchmarks",
+  scalability: "Expansion",
+};
+const TOPIC_ORDER: SourceTopic[] = ["market", "competitive", "gotomarket", "financials", "scalability"];
+
+// Sources grouped by the question they were retrieved to answer, so the
+// scorer is told "here is what we found about your competitors" rather than
+// handed one undifferentiated list. Untagged sources (older enrichment)
+// fall under a generic heading.
+function renderSources(sources: EnrichmentSource[]): string {
+  const line = (s: EnrichmentSource) => `  [S${s.id}] ${s.title} — ${s.url}`;
+  const groups: string[] = [];
+  for (const topic of TOPIC_ORDER) {
+    const inTopic = sources.filter((s) => s.topic === topic);
+    if (inTopic.length > 0) groups.push(`${TOPIC_HEADINGS[topic]}:\n${inTopic.map(line).join("\n")}`);
+  }
+  const untagged = sources.filter((s) => !s.topic);
+  if (untagged.length > 0) groups.push(`Regional:\n${untagged.map(line).join("\n")}`);
+  return groups.join("\n");
 }
 
 export function buildScoringPrompt(input: ScoringPromptInput): string {
@@ -119,7 +149,7 @@ Extracted facts:
 ${JSON.stringify(input.facts, null, 2)}
 
 ${input.regionContext ? `Live regional market context:\n${input.regionContext}\n` : "No live regional market data was available for this submission. Do not invent any; mark regionally-dependent metrics accordingly.\n"}
-${input.sources.length > 0 ? `Regional sources — cite these ids in sourceRefs:\n${input.sources.map((s) => `[S${s.id}] ${s.title} — ${s.url}`).join("\n")}\n` : ""}
+${input.sources.length > 0 ? `Regional sources — cite these ids in sourceRefs and in evidence items:\n${renderSources(input.sources)}\n` : ""}
 Original submission:
 <submission>
 ${input.rawText}
@@ -136,7 +166,9 @@ Respond with JSON of this exact shape:
   "metrics": {
     "<metricId>": {
       "score": <0-100 integer>,
-      "note": "2-line justification",
+      "assessment": "5-7 plain-language sentences",
+      "evidence": ["2-5 specific facts relied on, [S#]-prefixed when from a source"],
+      "missing": "what would have been needed to score higher",
       "strength": "strongest aspect of this metric",
       "gap": "biggest gap in this metric",
       "anchorBand": "<e.g. 60-80>",

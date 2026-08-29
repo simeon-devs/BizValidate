@@ -62,9 +62,17 @@ export type MetricConfidence = "high" | "medium" | "low";
 
 export interface MetricScore {
   score: number;
-  note: string;
+  // v1.0–v1.1: a two-line justification. Replaced by `assessment` in v1.2;
+  // kept optional so older reports still render.
+  note?: string;
   strength: string;
   gap: string;
+  // v1.2: a plain-language assessment, the specific facts relied on
+  // (validated in code against the submission and cited sources), and what
+  // would have been needed to score higher.
+  assessment?: string;
+  evidence?: string[];
+  missing?: string;
   // Audit fields, added in prompt v1.1. Optional: reports scored under v1.0
   // predate them and must keep rendering unchanged.
   anchorBand?: string; // anchor levels the score sits between, e.g. "60-80"

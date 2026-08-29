@@ -33,6 +33,9 @@ const GOLDEN: Record<string, Record<string, string>> = {
     // v1.1 — per-metric audit fields (anchorBand, basis, confidence,
     // sourceRefs) and cited regional sources.
     "v1.1": "20d95b6900dd1a3c71270ed5640d2dd9c948cf24b1d1f0e7dc8b88fa74f0dc08",
+    // v1.2 — per-metric assessment, validated evidence list and "missing";
+    // sources grouped by research topic.
+    "v1.2": "32c7f52ae9a3c50e2a1f0a9f771e8ce447374b1097bcd70bb6e9524af0ae6afb",
   },
   verification: {
     "v1.0": "7bf164804928970080a16d920a12ebac4196e69cdd8fffa0ffc4ee576b42afd8",

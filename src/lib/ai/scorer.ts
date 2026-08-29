@@ -1,8 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/utils/errors";
 import type { EnrichmentSource, MetricId, MetricScore } from "@/types/report";
+import { validateEvidence } from "./evidence";
 import type { ExtractedFacts } from "./types";
 import {
   SCORING_SYSTEM_PROMPT,
@@ -22,9 +24,14 @@ const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
 const metricScoreSchema = z.object({
   score: z.number().min(0).max(100),
-  note: z.string(),
+  note: z.string().optional(), // pre-v1.2 prompts
   strength: z.string(),
   gap: z.string(),
+  // v1.2 explanation fields. Optional at the schema so an omission never
+  // fails an otherwise valid score; the prompt requires them.
+  assessment: z.string().optional(),
+  evidence: z.array(z.string()).optional(),
+  missing: z.string().optional(),
   // v1.1 audit fields. Lenient by design: a model that omits or garbles one
   // of these should not fail an otherwise valid score — the field just goes
   // missing and the UI reports it as unstated.
@@ -45,7 +52,37 @@ const narrativeSchema = z.object({
   investorNotes: z.string(),
 });
 
-// The zod schema above validates what the model returns; MetricScore in
+// What the model is REQUIRED to emit, enforced by the API as structured
+// output. Long prose fields made hand-rolled JSON fragile (an unescaped quote
+// in a seven-sentence assessment fails the whole score); the schema makes
+// malformed output impossible instead of tolerated. Range checks stay in the
+// lenient validation schema above, which is applied to the parsed result.
+const metricOutputSchema = z.object({
+  score: z.number().int().describe("0-100"),
+  assessment: z.string(),
+  evidence: z.array(z.string()),
+  missing: z.string(),
+  strength: z.string(),
+  gap: z.string(),
+  anchorBand: z.string().describe('e.g. "60-80", "0-20" or "100"'),
+  basis: z.enum(["regional-data", "submission", "rubric-inference"]),
+  confidence: z.enum(["high", "medium", "low"]),
+  sourceRefs: z.array(z.number().int()),
+});
+
+function outputSchemaFor(metricIds: MetricId[], includeNarrative: boolean) {
+  const metrics = z.object(
+    Object.fromEntries(metricIds.map((id) => [id, metricOutputSchema])) as Record<
+      MetricId,
+      typeof metricOutputSchema
+    >,
+  );
+  return includeNarrative
+    ? z.object({ metrics }).merge(narrativeSchema)
+    : z.object({ metrics });
+}
+
+// The lenient schema above validates what came back; MetricScore in
 // src/types is the canonical domain shape and additionally carries fields the
 // pipeline sets itself (rescored).
 export type MetricScores = Record<MetricId, MetricScore>;
@@ -56,6 +93,10 @@ export interface ScoringResult {
   narrative: ScoringNarrative;
   promptVersion: string;
   scorerModel: string;
+  // How many model-claimed evidence items survived validation against the
+  // submission and cited sources. Surfaced in the trace so pruning is
+  // visible rather than silent.
+  evidence: { kept: number; dropped: number };
 }
 
 export interface ScoreInput {
@@ -81,11 +122,13 @@ export async function scoreSubmission(input: ScoreInput): Promise<ScoringResult>
 
   const { metrics, ...narrative } = parsed.data;
   pruneInvalidSourceRefs(metrics as MetricScores, input.sources);
+  const evidence = checkEvidence(metrics as MetricScores, input);
   return {
     metrics: metrics as MetricScores,
     narrative,
     promptVersion: PROMPT_VERSION,
     scorerModel: SCORER_MODEL,
+    evidence,
   };
 }
 
@@ -103,10 +146,12 @@ export async function rescoreMetrics(
   if (!parsed.success) {
     throw new AppError("Rescore output did not match schema.", "scoring_invalid");
   }
-  return pruneInvalidSourceRefs(
+  const metrics = pruneInvalidSourceRefs(
     parsed.data.metrics as Partial<MetricScores>,
     input.sources,
   );
+  checkEvidence(metrics, input);
+  return metrics;
 }
 
 async function callScorer(
@@ -114,11 +159,12 @@ async function callScorer(
   metricIds: MetricId[],
   includeNarrative: boolean,
 ): Promise<unknown> {
-  const response = await anthropic.messages.create({
+  const response = await anthropic.messages.parse({
     model: SCORER_MODEL,
-    // v1.1 adds four audit fields per metric on top of the narrative; 4096
-    // left no headroom and truncation surfaces as scoring_unparseable.
-    max_tokens: 8192,
+    // v1.2 adds an assessment paragraph, an evidence list and a "missing"
+    // line per metric on top of v1.1's audit fields and the narrative;
+    // observed ~4.2k output tokens for eight metrics, so this is headroom.
+    max_tokens: 12288,
     temperature: SCORER_TEMPERATURE,
     system: SCORING_SYSTEM_PROMPT,
     messages: [
@@ -135,24 +181,34 @@ async function callScorer(
         }),
       },
     ],
+    output_config: {
+      format: zodOutputFormat(outputSchemaFor(metricIds, includeNarrative)),
+    },
   });
 
-  const text = response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("");
-
-  return parseJson(text);
+  if (!response.parsed_output) {
+    throw new AppError("Scorer returned no structured output.", "scoring_unparseable");
+  }
+  return response.parsed_output;
 }
 
-function parseJson(text: string): unknown {
-  // Tolerate accidental markdown fencing despite the no-fences instruction.
-  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "");
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    throw new AppError("Scorer returned unparseable output.", "scoring_unparseable");
+// The evidence list is printed as fact, so each item is checked against the
+// submission and the cited sources; unsupported items are dropped and the
+// count is returned so the trace can say so.
+function checkEvidence<T extends Partial<MetricScores>>(
+  metrics: T,
+  input: ScoreInput,
+): { kept: number; dropped: number } {
+  let kept = 0;
+  let dropped = 0;
+  for (const metric of Object.values(metrics)) {
+    if (!metric?.evidence) continue;
+    const result = validateEvidence(metric.evidence, input.rawText, input.sources);
+    metric.evidence = result.kept;
+    kept += result.kept.length;
+    dropped += result.dropped.length;
   }
+  return { kept, dropped };
 }
 
 // A citation is only worth something if it points at a source we actually

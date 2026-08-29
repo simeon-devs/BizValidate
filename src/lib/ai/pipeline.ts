@@ -159,7 +159,11 @@ export async function runValidationPipeline(
     "Scoring",
     (result) => ({
       status: "ran",
-      detail: `Scored all ${METRIC_ORDER.length} metrics against the Bill Payne behavioral anchors at temperature 0.1, using prompt ${result.promptVersion}.`,
+      detail: `Scored all ${METRIC_ORDER.length} metrics against the rubric's behavioral anchors at temperature 0.1, using prompt ${result.promptVersion}.${
+        result.evidence.kept + result.evidence.dropped > 0
+          ? ` ${result.evidence.kept} of ${result.evidence.kept + result.evidence.dropped} evidence items the model cited were verified against the submission and sources; ${result.evidence.dropped} unsupported item${result.evidence.dropped === 1 ? " was" : "s were"} dropped.`
+          : ""
+      }`,
       model: result.scorerModel,
     }),
     () => scoreSubmission(scoreInput),

@@ -164,6 +164,32 @@ describe("ReportDocument", () => {
     expect(flat).not.toContain("undefined");
   });
 
+  it("renders a v1.2 metric block: assessment, verified evidence, what was missing", async () => {
+    const data: ReportData = {
+      metrics: metrics({
+        note: undefined,
+        assessment: "The four founders cover software, agronomy, logistics and finance between them.",
+        evidence: ["84 registered farmers across 6 villages", "[S1] Smallholders account for 70% of output"],
+        missing: "Audited accounts and an independent board.",
+        anchorBand: "60-80",
+        basis: "submission",
+      }),
+      sources: [{ id: 1, title: "Cameroon report", url: "https://a.example/1", snippet: "x" }],
+      trace: [],
+      ...NARRATIVE,
+    };
+
+    const pdf = await renderReportPdf(input(data, "v1.2"));
+    if (!hasPdftotext()) return;
+    const flat = extractText(pdf).replace(/\s+/g, " ");
+    expect(flat).toContain("The four founders cover software, agronomy");
+    expect(flat).toContain("EVIDENCE RELIED ON");
+    expect(flat).toContain("[S1] Smallholders account for 70% of output");
+    expect(flat).toContain("WHAT WAS MISSING");
+    expect(flat).toContain("Audited accounts and an independent board.");
+    expect(flat).not.toContain("undefined");
+  });
+
   it("keeps the running header to one line for a long business name", async () => {
     const data: ReportData = { metrics: metrics(), ...NARRATIVE };
     const long = input(data);

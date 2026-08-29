@@ -52,8 +52,14 @@ function MetricCard({
       </div>
 
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground text-pretty">
-        {metric.note}
+        {metric.assessment ?? metric.note}
       </p>
+      {metric.missing ? (
+        <p className="mt-2 text-[11px] leading-snug text-subtle-foreground text-pretty">
+          <span className="font-mono uppercase tracking-[0.12em]">Missing · </span>
+          {metric.missing}
+        </p>
+      ) : null}
 
       {/* v1.1 evidence badges. Absent on reports scored under v1.0. */}
       {metric.basis ? (
