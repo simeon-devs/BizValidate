@@ -6,6 +6,8 @@ const isPublicRoute = createRouteMatcher([
   "/api/health",
   // Called by Inngest, authenticated via its own signing key.
   "/api/inngest(.*)",
+  // Called by Clerk's servers, authenticated by Svix signature.
+  "/api/webhooks/(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

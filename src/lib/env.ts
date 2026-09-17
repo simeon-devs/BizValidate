@@ -31,6 +31,10 @@ const envSchema = z.object({
   NEXT_PUBLIC_CLERK_SIGN_UP_URL: z.string().default("/sign-up"),
   NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: z.string().default("/validate"),
   NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: z.string().default("/validate"),
+  // Optional, not required: an environment without it still boots, and the
+  // webhook route answers 503 until it is set. Making it mandatory would
+  // stop every existing deployment from starting the moment this shipped.
+  CLERK_WEBHOOK_SIGNING_SECRET: z.string().optional(),
 
   // Upstash Redis
   UPSTASH_REDIS_REST_URL: z.string().url(),
