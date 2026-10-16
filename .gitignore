@@ -50,3 +50,6 @@ docs/
 
 # v0 design export — reference only, ported into src/ then deleted
 business-validation-dashboard/
+
+# Superpowers brainstorming mockups (local, not part of the app)
+.superpowers/
